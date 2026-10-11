@@ -1,0 +1,1405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#1d2a3a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Door Map">
+<title>Scout Door Map</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: full screen map, slim top bar with season and tallies, bottom tab bar, panels slide up over the map */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --ink:#1d2a3a; --muted:#5d6b7c; --line:#d8dee6;
+  --accent:#e2a400; --accent-ink:#2a1f00; --navy:#1d2a3a;
+  --box:#ffffff; --outline:#334155;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f151d; --surface:#18212c; --ink:#e7edf4; --muted:#9aa8b8; --line:#2b3746;
+  --accent:#f0b81c; --accent-ink:#231a00; --navy:#0b1118;
+  --box:#0f151d; --outline:#cbd5e1; color-scheme:dark;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.4 var(--body);-webkit-tap-highlight-color:transparent;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+
+/* top bar */
+.top{background:var(--navy);color:#fff;padding:calc(env(safe-area-inset-top,0px) + 8px) 16px 8px;display:flex;flex-direction:column;gap:6px;z-index:500}
+.top-row{display:flex;align-items:center;gap:10px}
+.brand{font:700 22px/1 var(--display);letter-spacing:.02em;text-transform:uppercase;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.season-pill{background:var(--accent);color:var(--accent-ink);border:0;border-radius:999px;padding:5px 12px;font:700 15px/1 var(--display);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.tally{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.tally::-webkit-scrollbar{display:none}
+.tchip{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.1);border-radius:999px;padding:3px 9px 3px 6px;font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tchip i{width:10px;height:10px;border-radius:3px;display:block;border:1px solid rgba(255,255,255,.5)}
+.tchip b{font-weight:700}
+
+/* map */
+.mapwrap{position:relative;flex:1;min-height:0}
+#map{position:absolute;inset:0;background:var(--bg)}
+.leaflet-container{font-family:var(--body)}
+.fabs{position:absolute;right:12px;bottom:14px;display:flex;flex-direction:column;gap:10px;z-index:450}
+.fab{width:48px;height:48px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.fab svg{width:22px;height:22px}
+.fab.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.banner{color:var(--ink);cursor:pointer;position:absolute;left:12px;right:72px;top:64px;z-index:450;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.15);display:flex;gap:10px;align-items:center}
+.banner .spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.banner .spin{animation:none}}
+.toast{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;z-index:600;background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 4px 14px rgba(0,0,0,.25)}
+
+/* house labels */
+.hl{background:none;border:0}
+.hl-in{display:inline-flex;flex-direction:column;align-items:center;transform:translate(-50%,-50%);white-space:nowrap;pointer-events:auto}
+.hn{font:700 13px/1 var(--display);color:#111;background:rgba(255,255,255,.88);padding:2px 4px;border-radius:4px;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.hn.none{color:#777;font-weight:600}
+.dots{display:flex;gap:2px;margin-top:2px;justify-content:center}
+.dots i{width:7px;height:7px;border-radius:50%;border:1px solid #fff;display:block;box-shadow:0 0 0 .5px rgba(0,0,0,.4)}
+.dots i.empty{background:transparent!important;border-color:#666}
+.ul div{display:flex;flex-direction:column;align-items:center}
+.safe{display:flex;gap:10px;align-items:center;background:#e03131;color:#fff;padding:8px 16px;font-size:13px;font-weight:600;z-index:500}
+.safe.ok{background:#2f9e44}
+.safe span{flex:1;min-width:0}
+.safe button{background:#fff;color:#111;border:0;border-radius:8px;padding:6px 10px;font-weight:700;white-space:nowrap}
+.ul{background:none;border:0}
+.ul div{transform:translate(-50%,-50%);font:700 11px/1 var(--display);color:#111;background:rgba(255,255,255,.85);padding:1px 3px;border-radius:3px;white-space:nowrap}
+.mv{background:none;border:0}
+.mv div{width:46px;height:46px;border-radius:50%;background:var(--accent);color:var(--accent-ink);border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.45);display:grid;place-items:center;font-size:24px;line-height:1}
+.login{position:fixed;inset:0;z-index:950;background:var(--navy);display:grid;place-items:center;padding:16px;overflow:auto}
+.login-card{width:100%;max-width:380px;background:var(--surface);border-radius:18px;padding:22px 20px;display:flex;flex-direction:column;gap:8px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.login-brand{font:700 30px/1 var(--display);text-transform:uppercase;letter-spacing:.02em}
+.login-sub{margin:0 0 8px;color:var(--muted)}
+.login-l{font-size:13px;font-weight:600;color:var(--muted);margin-top:6px}
+.login-card input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:12px}
+.login-card .btn{margin-top:12px;padding:13px}
+.login-err{margin:4px 0 0;color:#e03131;font-weight:600;font-size:14px}
+.login-skip{border:0;background:none;color:var(--muted);text-decoration:underline;padding:10px 0 0;font-size:13px}
+.safe.sync{background:#1c7ed6}
+.dl{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;transform:translate(-50%,-50%);background:#fff;color:#111;border-radius:7px;padding:3px 7px 4px;box-shadow:0 1px 4px rgba(0,0,0,.45);border:2px solid #e8590c;font:600 12px/1.2 var(--body);white-space:nowrap;font-variant-numeric:tabular-nums;pointer-events:auto}
+.dl .a{font:700 13px/1.1 var(--display);letter-spacing:.02em}
+.dl .ln b{font-weight:800}
+.dl .u{color:#555;font-weight:700;margin-right:3px}
+.dl .due{color:#c92a2a;font-weight:800}
+.dl.done{border-color:#adb5bd;opacity:.6}
+.dl.done .a::after{content:" \2713";color:#2f9e44}
+.fab.truck.on{background:#ffb300;color:#2a1f00;border-color:#ffb300}
+.dcard{border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.dcard.done{opacity:.7}
+.dcard h3{margin:0;font:700 20px/1.1 var(--display)}
+.drow{display:flex;align-items:baseline;gap:10px;font-size:18px;font-weight:600}
+.drow b{font:700 28px/1 var(--display);min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
+.dpay{font-weight:700}
+.dpay.due{color:#c92a2a}
+.dpay.ok{color:#2f9e44}
+.big-btn{width:100%;padding:14px;font-size:17px;font-weight:700;border-radius:12px;border:0;background:#ffb300;color:#2a1f00}
+.big-btn.undo{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+.prod-row input.pc{width:62px;flex:none;text-transform:uppercase;text-align:center;padding-inline:4px}
+.search{position:absolute;left:12px;right:12px;top:10px;z-index:460}
+.search .box{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:0 6px 0 12px;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.search .box svg{width:18px;height:18px;color:var(--muted);flex:none}
+.search input{flex:1;min-width:0;border:0;background:transparent;padding:11px 0;font-size:16px;outline:none}
+.search .clr{border:0;background:none;width:34px;height:34px;color:var(--muted);font-size:20px;line-height:1}
+.sres{margin-top:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,.2);max-height:50vh;overflow-y:auto}
+.sres button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:none;padding:11px 12px;font-size:15px}
+.sres button:first-child{border-top:0}
+.sres i{width:12px;height:12px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.2)}
+.sres small{color:var(--muted);margin-left:auto;font-size:12px;white-space:nowrap}
+.backbox{border:2px solid #f59f00;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.backbox input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;font-size:16px}
+.rcpt{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.rcpt [data-seller][aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.rcpt input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;font-size:16px}
+.cblist button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:none;padding:11px 12px}
+.cblist button:first-child{border-top:0}
+.cblist b{min-width:96px;font-variant-numeric:tabular-nums}
+@media (max-width:460px){.brand .bw{display:none}}
+.scout-sel{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 8px;font:600 13px/1 var(--body);max-width:130px}
+.scout-sel option{color:#111}
+.soldby{display:flex;align-items:center;gap:10px}
+.soldby select{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;font-size:16px}
+.board{border:1px solid var(--line);border-radius:12px;overflow-x:auto}
+.board table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13px}
+.board th,.board td{padding:9px 5px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
+.board th{border-top:0;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.board td:first-child,.board th:first-child{text-align:left;font-weight:700}
+.board tr.lead td{background:rgba(245,179,1,.14)}
+.star-ic{background:none;border:0}
+.star-ic div{font-size:20px;line-height:1;color:#f5b301;text-shadow:0 0 2px #000,0 0 1px #000,0 1px 3px rgba(0,0,0,.6)}
+.big{margin:0;font-weight:700;color:#a87900;display:flex;gap:6px;align-items:center}
+.big span{color:#f5b301;font-size:18px;text-shadow:0 0 1px #000}
+@media (prefers-color-scheme:dark){.big{color:#f5c542}}
+.unpaid{font:700 10px/1 var(--body);background:#e03131;color:#fff;border-radius:3px;padding:2px 4px;margin-top:2px;letter-spacing:.04em;text-transform:uppercase}
+.pay-warn{color:#e03131;font-weight:700;font-size:13px}
+.tchip.warn{background:#e03131;color:#fff}
+.heatn{font:600 10px/1 var(--body);background:#111;color:#fff;border-radius:3px;padding:1px 3px;margin-top:2px}
+
+/* tab bar */
+.tabs{display:flex;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);z-index:500}
+.tab{flex:1;border:0;background:none;padding:8px 4px 9px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;font-weight:600;color:var(--muted)}
+.tab svg{width:22px;height:22px}
+.tab[aria-selected="true"]{color:var(--ink)}
+.tab[aria-selected="true"] svg{color:var(--accent)}
+
+/* sheets */
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:520;background:var(--surface);border-radius:18px 18px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.2);max-height:72%;display:flex;flex-direction:column}
+.sheet.tall{max-height:88%}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--line);margin:8px auto 2px;flex:none}
+.sh-head{display:flex;align-items:flex-start;gap:10px;padding:6px 16px 10px;flex:none}
+.sh-title{flex:1;min-width:0}
+.sh-title h2{margin:0;font:700 26px/1.05 var(--display);letter-spacing:.01em;text-wrap:balance}
+.sh-title p{margin:3px 0 0;color:var(--muted);font-size:13px}
+.x{border:0;background:var(--bg);width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none}
+.x svg{width:18px;height:18px}
+.sh-body{overflow-y:auto;padding:0 16px 18px;display:flex;flex-direction:column;gap:16px;-webkit-overflow-scrolling:touch}
+.label{font:600 12px/1 var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
+.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.chip{display:flex;align-items:center;gap:8px;border:2px solid var(--line);background:var(--surface);border-radius:12px;padding:11px 10px;font-weight:600;text-align:left;min-height:48px}
+.chip i{width:18px;height:18px;border-radius:5px;flex:none;border:1px solid rgba(0,0,0,.15)}
+.chip[aria-pressed="true"]{border-color:var(--ink);background:var(--bg)}
+.chip[aria-pressed="true"]::after{content:"";margin-left:auto;width:8px;height:14px;border:solid var(--ink);border-width:0 3px 3px 0;transform:rotate(45deg) translateY(-2px)}
+textarea,input[type=text],input[type=number],select{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px}
+textarea{min-height:84px;resize:vertical}
+.row{display:flex;gap:8px;align-items:center}
+.row > *{min-width:0}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 14px;font-weight:600;white-space:nowrap}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.danger{color:#c92a2a}
+.btn.small{padding:6px 10px;font-size:13px}
+.hist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.hist-row{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-top:1px solid var(--line)}
+.hist-row:first-child{border-top:0}
+.hist-row .yr{font:700 17px/1.1 var(--display);width:56px;flex:none}
+.hist-row .st{display:flex;align-items:center;gap:6px;font-weight:600}
+.hist-row .st i{width:12px;height:12px;border-radius:3px}
+.hist-row .nt{color:var(--muted);font-size:13px;margin-top:2px;overflow-wrap:anywhere}
+.muted{color:var(--muted)}
+.hint{font-size:13px;color:var(--muted);margin:0}
+
+/* seasons list */
+.list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.li{display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--line);min-height:56px}
+.li:first-child{border-top:0}
+.li .nm{flex:1;min-width:0;font:700 19px/1.1 var(--display)}
+.li .nm small{display:block;font:500 12px/1.3 var(--body);color:var(--muted)}
+.tag{font:700 11px/1 var(--body);text-transform:uppercase;letter-spacing:.06em;background:var(--accent);color:var(--accent-ink);padding:4px 7px;border-radius:6px}
+.switch{position:relative;width:46px;height:28px;flex:none}
+.switch input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.switch span{position:absolute;inset:0;border-radius:999px;background:var(--line);transition:background .15s}
+.switch span::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.switch input:checked + span{background:var(--accent)}
+.switch input:checked + span::after{transform:translateX(18px)}
+.switch input:focus-visible + span{outline:3px solid var(--ink);outline-offset:2px}
+.money{display:flex;gap:14px;font-size:13px;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.85);flex-wrap:wrap}
+.money b{color:#fff;font-weight:700}
+.money .gt b{color:var(--accent)}
+.money .unp b{color:#ff8787}
+.money .kid{flex-basis:100%;background:rgba(245,179,1,.18);border:1px solid rgba(245,179,1,.45);border-radius:8px;padding:5px 8px;color:#fff}
+.money .kid b{color:var(--accent)}
+.amts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.amt{display:flex;flex-direction:column;gap:6px;min-width:0}
+.amt span{font-size:13px;font-weight:600;color:var(--muted)}
+.amt .in{display:flex;align-items:center;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding-left:12px}
+.amt .in b{color:var(--muted);font-weight:600}
+.amt .in input{border:0;background:transparent;padding:10px 12px 10px 4px;width:100%;font-variant-numeric:tabular-nums}
+.amt-total{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.li .money-line{display:block;font:500 12px/1.4 var(--body);color:var(--muted);font-variant-numeric:tabular-nums}
+.items{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.item{display:flex;align-items:center;gap:10px;padding:8px 10px 8px 12px;border-top:1px solid var(--line)}
+.item:first-child{border-top:0}
+.item.has{background:var(--bg)}
+.it-name{flex:1;min-width:0;font-weight:600;line-height:1.2}
+.it-name small{display:block;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+.step{display:flex;align-items:center;gap:4px;flex:none}
+.step button{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:20px;font-weight:700;line-height:1}
+.step input{width:46px;height:40px;text-align:center;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-weight:700;font-variant-numeric:tabular-nums;padding:0}
+.order-sum{display:flex;gap:12px;flex-wrap:wrap;font-size:14px;font-variant-numeric:tabular-nums;margin-top:10px}
+.order-sum b{font-weight:700}
+.legacy{font-size:13px;color:var(--muted);margin:8px 0 0}
+.prod-row{display:flex;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--line)}
+.prod-row:first-child{border-top:0}
+.prod-row input.pl{flex:1}
+.prod-row .pp{display:flex;align-items:center;gap:4px;width:96px;flex:none}
+.prod-row .pp input{width:100%}
+.paidbox{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.pay{display:flex;gap:8px;flex-wrap:wrap}
+.pay label{display:flex;align-items:center;gap:8px;border:2px solid var(--line);border-radius:12px;padding:10px 14px;font-weight:600;min-height:46px;cursor:pointer}
+.pay input{width:20px;height:20px;accent-color:var(--accent);margin:0}
+.pay label:has(input:checked){border-color:var(--ink);background:var(--bg)}
+.danger-row{display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px}
+.heatbox{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--bg)}
+.ramp{display:flex;height:14px;border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.ramp i{flex:1}
+.ramp-lab{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* status editor */
+.st-row{display:flex;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--line)}
+.st-row:first-child{border-top:0}
+.st-row input[type=color]{width:42px;height:42px;border:1px solid var(--line);border-radius:10px;padding:2px;background:var(--surface);flex:none}
+.st-row input[type=text]{flex:1}
+.icon-btn{width:40px;height:40px;border:0;background:none;display:grid;place-items:center;color:var(--muted);flex:none;border-radius:10px}
+.icon-btn svg{width:20px;height:20px}
+
+/* confirm */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;display:grid;place-items:center;padding:16px}
+.modal{background:var(--surface);border-radius:16px;padding:18px;max-width:360px;width:100%;display:flex;flex-direction:column;gap:14px}
+.modal p{margin:0}
+.modal .row{justify-content:flex-end}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="top-row">
+      <div class="brand"><span class="bw">Scout </span>Door Map</div>
+      <select class="scout-sel" id="scoutSel" aria-label="Which scout is selling right now"></select>
+      <button class="season-pill" id="seasonPill" aria-label="Change season"></button>
+    </div>
+    <div class="tally" id="tally"></div>
+    <div class="money" id="money" aria-live="polite"></div>
+  </header>
+  <div class="safe" id="safe" hidden role="status"></div>
+  <div class="mapwrap">
+    <div id="map" role="application" aria-label="Neighborhood map"></div>
+    <div class="search" id="search">
+      <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="text" id="searchIn" placeholder="Search an address" autocomplete="off" aria-label="Search an address" enterkeyhint="search">
+        <button class="clr" id="searchClr" type="button" aria-label="Clear search" hidden>&times;</button></div>
+      <div class="sres" id="searchRes" hidden></div>
+    </div>
+    <div class="banner" id="banner" hidden></div>
+    <div class="fabs">
+      <button class="fab truck" id="fabDeliver" aria-label="Delivery mode" title="Delivery mode">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v10H1z"/><path d="M14 9h4l4 4v3h-8"/><circle cx="5.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg>
+      </button>
+      <button class="fab" id="fabBase" aria-label="Switch map style" title="Map or satellite">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="m2 13 10 5 10-5"/></svg>
+      </button>
+      <button class="fab" id="fabAdd" aria-label="Add a missing house" title="Add a house">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M12 12v6M9 15h6"/></svg>
+      </button>
+      <button class="fab" id="fabLocate" aria-label="Show my location" title="My location">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </button>
+    </div>
+    <div class="toast" id="toast" hidden></div>
+    <section class="sheet" id="sheet" hidden aria-modal="false"></section>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="map" aria-selected="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2V6Z"/><path d="M9 4v14M15 6v14"/></svg>Map
+    </button>
+    <button class="tab" role="tab" data-tab="seasons" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="m2 12 10 5 10-5"/><path d="m2 16 10 5 10-5"/></svg>Seasons
+    </button>
+    <button class="tab" role="tab" data-tab="settings" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>Settings
+    </button>
+  </nav>
+</div>
+<div class="login" id="login" hidden>
+  <form class="login-card" id="loginForm" novalidate>
+    <div class="login-brand">Scout Door Map</div>
+    <p class="login-sub">Sign in to see your map on any phone.</p>
+    <label class="login-l" for="lgEmail">Email</label>
+    <input type="email" id="lgEmail" autocomplete="username" inputmode="email" required>
+    <label class="login-l" for="lgPass">Password</label>
+    <input type="password" id="lgPass" autocomplete="current-password" required>
+    <p class="login-err" id="lgErr" hidden></p>
+    <button class="btn primary" type="submit" id="lgBtn">Sign in</button>
+    <button class="login-skip" type="button" id="lgSkip">Use without signing in on this phone</button>
+  </form>
+</div>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function(){
+"use strict";
+/* ---------- storage ---------- */
+const KS='sdm.state.v1', KH='sdm.houses.v1', KT='sdm.tiles.v1';
+function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){toast('Phone storage is full. Export a backup in Settings, then clear saved map houses.');return false}}
+const YR=new Date().getFullYear();
+const DEFAULT_PRODUCTS=[
+  {id:'w25',label:'Balsam Fir Wreath (25")',price:30},{id:'w36',label:'Balsam Fir Wreath (36")',price:50},{id:'wvoy',label:'Wreath Voyageur',price:40},
+  {id:'swag',label:'Door Swag',price:30},{id:'garl',label:'Garland 25 ft',price:45},{id:'cent',label:'Centerpiece',price:40},
+  {id:'spru',label:'Spruce Tops',price:40},{id:'porch',label:'Porch Pot Kit',price:25},{id:'cross',label:'Holiday Cross',price:40},{id:'cane',label:'Candy Cane',price:40}];
+// names from the first version, updated to match the order form unless you renamed them yourself
+const OLD_PRODUCT_LABELS={w25:['Wreath 25 in.'],w36:['Wreath 36 in.'],wvoy:['Premium Voyageur Wreath (25")'],swag:['Balsam Door Swag'],garl:['Balsam Garland (25 ft)'],cent:['Holiday Centerpiece']};
+function defaults(){return{
+  statuses:[
+    {id:'yes',label:'Yes, bought',color:'#2f9e44'},
+    {id:'no',label:'No',color:'#e03131'},
+    {id:'nothome',label:'Not home',color:'#868e96'},
+    {id:'comeback',label:'Come back',color:'#f59f00'},
+    {id:'tooknum',label:'Took my number',color:'#1c7ed6'}
+  ],
+  seasons:[{id:'s'+YR,name:String(YR)}],
+  active:'s'+YR, show:[], marks:{},
+  heat:{on:false,status:'yes'},
+  base:'street', view:{c:[44.9239,-92.9594],z:15}
+}}
+let S=Object.assign(defaults(),load(KS,{}));
+let H=load(KH,{});
+let T=new Set(load(KT,[]));
+var SY={on:false,ready:false,db:null,auth:null,last:{},pushT:null,localOnly:false,user:null,online:navigator.onLine};
+function saveS(){const r=save(KS,S);schedulePush();return r}
+const saveT=()=>save(KT,[...T]);
+// each season keeps its own product list and prices
+function prodsFor(sid){const se=S.seasons.find(x=>x.id===sid);if(!se)return DEFAULT_PRODUCTS;if(!se.products){const i=S.seasons.indexOf(se);const prev=S.seasons.slice(0,i).reverse().find(x=>x.products);se.products=JSON.parse(JSON.stringify(prev?prev.products:DEFAULT_PRODUCTS))}return se.products}
+S.seasons.forEach(se=>prodsFor(se.id));
+{let ch=false;for(const se of S.seasons)for(const p of (se.products||[])){if(OLD_PRODUCT_LABELS[p.id]&&OLD_PRODUCT_LABELS[p.id].includes(p.label)){p.label=DEFAULT_PRODUCTS.find(d=>d.id===p.id).label;ch=true}}if(ch)save(KS,S)}
+function itemsTotal(sid,items){let t=0;if(!items)return 0;for(const p of prodsFor(sid))t+=(+items[p.id]||0)*p.price;return Math.round(t*100)/100}
+function recomputeSales(sid){const m=S.marks[sid]||{};for(const k in m)if(m[k].items)m[k].sale=itemsTotal(sid,m[k].items)}
+function saveH(){const out={};for(const id in H)if(!H[id].temp)out[id]=H[id];const r=save(KH,out);schedulePush();return r}
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r6=x=>Math.round(x*1e6)/1e6;
+const statusById=id=>S.statuses.find(s=>s.id===id);
+const seasonById=id=>S.seasons.find(s=>s.id===id);
+const mark=(sid,hid)=>(S.marks[sid]||{})[hid];
+function cssv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+const dark=()=>window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches;
+let toastT;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3200)}
+function addrOf(h){if(!h)return'';return (h.n?h.n:'')+(h.s?(h.n?' ':'')+h.s:'')}
+function confirmBox(text,ok){return new Promise(res=>{
+  const bg=document.createElement('div');bg.className='modal-bg';
+  bg.innerHTML='<div class="modal" role="dialog" aria-modal="true"><p>'+esc(text)+'</p><div class="row"><button class="btn" data-a="0">Cancel</button><button class="btn primary" data-a="1">'+esc(ok)+'</button></div></div>';
+  bg.addEventListener('click',e=>{const a=e.target.getAttribute('data-a');if(a!==null||e.target===bg){bg.remove();res(a==='1')}});
+  document.body.appendChild(bg);bg.querySelector('[data-a="1"]').focus();
+})}
+function shown(){ // seasons in play for combined views: active plus toggled
+  const ids=new Set(S.show.filter(id=>seasonById(id)));ids.add(S.active);
+  return S.seasons.filter(s=>ids.has(s.id)).map(s=>s.id);
+}
+function heatCount(key){let n=0;for(const sid of shown()){const m=mark(sid,key);if(m&&m.st===S.heat.status)n++}return n}
+const hasUnits=h=>h&&h.u&&h.u.length>0;
+function unitStats(hid){
+  const h=H[hid],m=S.marks[S.active]||{},cnt={};let marked=0;
+  for(const u of h.u){const mm=m[hid+'|'+u];if(mm&&mm.st){cnt[mm.st]=(cnt[mm.st]||0)+1;marked++}}
+  let top=null,tv=0;for(const k in cnt)if(cnt[k]>tv){tv=cnt[k];top=k}
+  return{marked,top,total:h.u.length};
+}
+function unitHeat(hid){const h=H[hid];let s=0;for(const u of h.u)s+=heatCount(hid+'|'+u);return s/(h.u.length*shown().length)}
+function money(n){n=Math.round((+n||0)*100)/100;return'$'+n.toLocaleString('en-US',{minimumFractionDigits:n%1?2:0,maximumFractionDigits:2})}
+function parseAmt(v){const n=parseFloat(String(v).replace(/[^0-9.]/g,''));return isNaN(n)?0:Math.round(n*100)/100}
+function seasonTotals(sid){let sale=0,don=0,unpaid=0;const m=S.marks[sid]||{};for(const k in m){const a=+m[k].sale||0,d=+m[k].don||0;sale+=a;don+=d;if(!m[k].paid)unpaid+=a+d}return{sale,don,total:sale+don,unpaid}}
+// a door owes money when it bought or gave something but Paid is still off
+function needsPay(key){const m=mark(S.active,key);return!!(m&&!m.paid&&(((+m.sale||0)+(+m.don||0))>0||m.st==='yes'))}
+// gold star: sales or donation over $100 in any season
+const BIG=100;
+function bigBuyer(key){let best=null;for(const se of S.seasons){const m=(S.marks[se.id]||{})[key];if(!m)continue;const a=Math.max(+m.sale||0,+m.don||0);if(a>BIG&&(!best||a>best.amt))best={amt:a,season:se.name,kind:(+m.sale||0)>=(+m.don||0)?'sales':'donation'}}return best}
+function houseBig(hid){const h=H[hid];if(!h||h.x)return null;if(hasUnits(h)){let best=null;for(const u of h.u){const b=bigBuyer(hid+'|'+u);if(b&&(!best||b.amt>best.amt))best=b}return best}return bigBuyer(hid)}
+function houseNeedsPay(hid){const h=H[hid];if(!h||h.x)return false;if(hasUnits(h))return h.u.some(u=>needsPay(hid+'|'+u));return needsPay(hid)}
+function exportBackup(){
+  const blob=new Blob([JSON.stringify({app:'scout-door-map',v:1,exported:new Date().toISOString(),state:S,houses:H})],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='door-map-backup-'+new Date().toISOString().slice(0,16).replace(':','')+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);
+  S.lastExport=Date.now();S.dirty=0;saveS();renderSafe();toast('Backup saved to your Downloads folder');
+}
+function csvCell(v){v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function exportCSV(sid){
+  const se=seasonById(sid);const prods=prodsFor(sid);const m=S.marks[sid]||{};
+  const qty={};prods.forEach(p=>qty[p.id]=0);let don=0,legacy=0;const orders=[];
+  for(const k in m){const mm=m[k];const it=mm.items||{};let has=false;prods.forEach(p=>{const q=+it[p.id]||0;if(q){qty[p.id]+=q;has=true}});
+    don+=+mm.don||0;if(!mm.items&&mm.sale){legacy+=+mm.sale;has=true}
+    if(has||+mm.don)orders.push(k)}
+  const rows=[];const money2=n=>(Math.round(n*100)/100).toFixed(2);
+  rows.push([(se?se.name:'')+' order totals']);
+  rows.push(['Item','Price','Quantity','Total']);
+  let itemsSum=0;prods.forEach(p=>{const t=qty[p.id]*p.price;itemsSum+=t;rows.push([p.label,money2(p.price),qty[p.id],money2(t)])});
+  if(legacy)rows.push(['Sales entered without items','','',money2(legacy)]);
+  rows.push(['Items total','','',money2(itemsSum+legacy)]);
+  rows.push(['Donations','','',money2(don)]);
+  rows.push(['Grand total','','',money2(itemsSum+legacy+don)]);
+  {let up=0;for(const k in m)if(!m[k].paid)up+=(m[k].items?itemsTotal(sid,m[k].items):(+m[k].sale||0))+(+m[k].don||0);rows.push(['Not paid yet (already included in grand total)','','',money2(up)])}
+  rows.push([]);rows.push(['Orders by house']);
+  rows.push(['Address','Unit'].concat(prods.map(p=>p.label)).concat(['Items $','Donation $','Total $','Paid','Paid by','Scout','Notes']));
+  const addrFor=k=>{const [hid,unit]=k.split('|');const h=H[hid];return{a:h?(addrOf(h)||'No address'):'Removed house',u:unit||''}};
+  orders.sort((x,y)=>{const a=addrFor(x),b=addrFor(y);return (a.a+' '+a.u).localeCompare(b.a+' '+b.u,undefined,{numeric:true})});
+  for(const k of orders){const mm=m[k];const it=mm.items||{};const ad=addrFor(k);const sale=mm.items?itemsTotal(sid,it):(+mm.sale||0);
+    const by=mm.pay?['cash','check','venmo'].filter(w=>mm.pay[w]).map(w=>w[0].toUpperCase()+w.slice(1)).join(' + '):'';
+    rows.push([ad.a,ad.u].concat(prods.map(p=>+it[p.id]||'')).concat([money2(sale),money2(+mm.don||0),money2(sale+(+mm.don||0)),mm.paid?'Yes':'No',by,mm.seller||'',(mm.note||'').replace(/\s+/g,' ')]))}
+  const csv=rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='orders-'+(se?se.name:'season').replace(/[^A-Za-z0-9]+/g,'-')+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);
+  toast('Order spreadsheet saved to Downloads');
+}
+function dotColor(st){return st.dot||st.color} // dots match the box color until you pick a different one
+function dotsHtml(key,others){let o='<span class="dots">';for(const sid of others){const m=mark(sid,key),st=m&&statusById(m.st);o+=st?'<i style="background:'+dotColor(st)+'"></i>':'<i class="empty"></i>'}return o+'</span>'}
+// delivery mode helpers
+const DEFAULT_CODES={w25:'W25',w36:'W36',wvoy:'VOY',swag:'SWG',garl:'GAR',cent:'CP',spru:'SPR',porch:'PPK',cross:'CRS',cane:'CC'};
+function pcode(p){return (p.code||DEFAULT_CODES[p.id]||p.label.split(/\s+/).map(w=>w[0]||'').join('').slice(0,3)).toUpperCase()}
+function orderOf(key){const m=mark(S.active,key);if(!m)return null;const items=[];
+  if(m.items)for(const p of prodsFor(S.active)){const q=+m.items[p.id]||0;if(q)items.push({p,q})}
+  const legacy=!m.items&&+m.sale?+m.sale:0;if(!items.length&&!legacy)return null;
+  return{items,legacy,m,due:m.paid?0:(m.items?itemsTotal(S.active,m.items):(+m.sale||0))+(+m.don||0)}}
+function houseOrders(hid){const h=H[hid];if(!h||h.x)return[];if(hasUnits(h)){const sh=unitShort(h);return h.u.map((u,i)=>({u,short:sh[i],key:hid+'|'+u,o:orderOf(hid+'|'+u)})).filter(x=>x.o)}
+  const o=orderOf(hid);return o?[{u:null,key:hid,o}]:[]}
+function delStyle(list,sel){
+  if(!list.length)return{color:cssv('--outline'),weight:sel?3.5:1,opacity:.35,fillColor:cssv('--box'),fillOpacity:.06};
+  if(list.every(x=>x.o.m.delivered))return{color:sel?cssv('--accent'):'#868e96',weight:sel?3.5:1.5,opacity:.9,fillColor:'#adb5bd',fillOpacity:.45};
+  return{color:sel?cssv('--accent'):'#b35c00',weight:sel?3.5:2.5,opacity:1,fillColor:'#ffb300',fillOpacity:.9};
+}
+// come back times and receipts
+function fmtBack(v){if(!v)return'';const d=new Date(v);if(isNaN(d))return'';return d.toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'})}
+const DEFAULT_SELLERS=['Ryler','Zander','Trexton','Amethyst'];
+const sellers=()=>(S.sellers&&S.sellers.length?S.sellers:DEFAULT_SELLERS);
+function listJoin(a){return a.length<2?(a[0]||''):a.slice(0,-1).join(', ')+' and '+a[a.length-1]}
+const DEFAULT_DELIVERY_NOTE="We will deliver your selections the week before Thanksgiving. Please be aware that if you are not home we will place your selection on your porch or doorstep.\n\nIf you would prefer for us to drop off your selection while you are at home, please reply to this message.";
+function receiptText(key,hid,unit,seller){const m=mark(S.active,key)||{};
+  const lines=[];let t=0;
+  if(m.items)for(const p of prodsFor(S.active)){const q=+m.items[p.id]||0;if(q){t+=q*p.price;lines.push(q+' x '+p.label+'  '+money(q*p.price))}}
+  else if(+m.sale){t+=+m.sale;lines.push('Order  '+money(m.sale))}
+  const don=+m.don||0;t+=don;
+  const pack=S.packName||'Cub Scout Pack 601 of Woodbury';
+  const by=m.pay?listJoin(['cash','check','venmo'].filter(w=>m.pay[w]).map(w=>w==='venmo'?'Venmo':w)):'';
+  const out=['Hi, this is your Cub Scout'+(seller?' '+seller:'')+'!',''];
+  if(lines.length){out.push('You have purchased the following in support of '+pack+':');lines.forEach(l=>out.push(l));if(don)out.push('Donation  '+money(don))}
+  else out.push('You have donated '+money(don)+' in support of '+pack+'.');
+  out.push('');
+  out.push('Your total is '+money(t)+(m.paid?' and you paid in full'+(by?' by '+by:'')+'.':', which has not been paid yet.'));
+  if(lines.length){out.push('');out.push((S.rcDelivery||DEFAULT_DELIVERY_NOTE).replace(/\r/g,''))}
+  out.push('');out.push('Thank you for supporting us today!');
+  return out.join('\n')}
+function copyText(t){const ok=()=>toast('Receipt copied');
+  if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t).then(ok,()=>fallback());else fallback();
+  function fallback(){const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');ok()}catch(e){toast('Could not copy on this phone')}ta.remove()}}
+function heatOn(){return S.heat.on && shown().length>1 && statusById(S.heat.status)}
+
+/* ---------- map ---------- */
+const map=L.map('map',{zoomControl:false,attributionControl:false,preferCanvas:true,maxZoom:21}).setView(S.view.c,S.view.z);
+L.control.attribution({prefix:false}).addTo(map); // plain text credits, nothing tappable that leaves the page
+const renderer=L.canvas({padding:.3,tolerance:6});
+const bases={
+  street:()=>L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:21,maxNativeZoom:19,attribution:'Map: Esri, HERE, Garmin, OpenStreetMap contributors'}),
+  satellite:()=>L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:21,maxNativeZoom:19,attribution:'Imagery: Esri, Maxar, Earthstar Geographics'})
+};
+let baseLayer=null;
+function setBase(){if(baseLayer)map.removeLayer(baseLayer);baseLayer=bases[S.base]().addTo(map);baseLayer.bringToBack();$('#fabBase').classList.toggle('on',S.base==='satellite')}
+setBase();
+if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{setBase();restyleAll()});
+
+const polys={}; const houseLayer=L.layerGroup().addTo(map); const labelLayer=L.layerGroup().addTo(map);
+let selected=null;
+
+function styleFor(hid){
+  const outline=cssv('--outline'), box=cssv('--box');
+  const sel=hid===selected;const h=H[hid]||{};
+  if(S.deliver&&!hasUnits(h)&&!(h.multi))return delStyle(houseOrders(hid),sel);
+  if(h.multi&&!hasUnits(h))return{color:outline,weight:1.5,opacity:.7,dashArray:'4 4',fillColor:box,fillOpacity:.1};
+  if(hasUnits(h))return{color:sel?cssv('--accent'):outline,weight:sel?3.5:2.4,opacity:.95,fillColor:box,fillOpacity:.05};
+  if(heatOn()){
+    const st=statusById(S.heat.status), n=heatCount(hid), tot=shown().length;
+    if(!n) return{color:outline,weight:sel?3.5:1,opacity:.55,fillColor:box,fillOpacity:.08};
+    const f=n/tot;
+    return{color:sel?cssv('--accent'):st.color,weight:sel?3.5:1.5,opacity:1,fillColor:shadeColor(st.color,f),fillOpacity:.25+.7*f};
+  }
+  const m=mark(S.active,hid), st=m&&statusById(m.st);
+  if(st) return{color:sel?cssv('--accent'):shadeColor(st.color,1),weight:sel?3.5:1.5,opacity:1,fillColor:st.color,fillOpacity:.78};
+  return{color:sel?cssv('--accent'):outline,weight:sel?3.5:1.3,opacity:.9,fillColor:box,fillOpacity:.3};
+}
+// darken toward deeper shade as f grows (f 0..1)
+function shadeColor(hex,f){
+  const h=hex.replace('#','');const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16);
+  let r=n>>16&255,g=n>>8&255,b=n&255;
+  const k=f>=1?.72:1-(.28*f); // lightest stays the color, full count gets 28% darker
+  const lift=(1-f)*.45; // lower counts are washed lighter
+  r=Math.round((r*k)+(255-r*k)*lift);g=Math.round((g*k)+(255-g*k)*lift);b=Math.round((b*k)+(255-b*k)*lift);
+  return'#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+function ensurePoly(hid){
+  if(polys[hid])return polys[hid];
+  const h=H[hid]; if(!h||!h.p)return null;
+  const p=L.polygon(h.p,Object.assign({renderer,interactive:true},styleFor(hid)));
+  p.on('click',e=>{const hh=H[hid];if(hh&&hh.multi&&!hasUnits(hh))return;L.DomEvent.stop(e);onHouseTap(hid)});
+  p.on('contextmenu',e=>{L.DomEvent.stop(e);if(e.originalEvent)e.originalEvent.preventDefault();startMove(hid)});
+  p.addTo(houseLayer); polys[hid]=p; buildSlices(hid); updateHalo(hid); return p;
+}
+// a building split into units is drawn as one section per unit, each colored on its own
+const slices={};
+function sliceRects(h){
+  const n0=h.u.length;
+  if(h.custom){const b=boxHalf(h),r=(h.rot||0)*Math.PI/180,co=Math.cos(r),si=Math.sin(r),kx=111320*Math.cos(h.c[0]*Math.PI/180),ky=110540;
+    const tr=([x,y])=>[h.c[0]+(x*si+y*co)/ky,h.c[1]+(x*co-y*si)/kx];const out0=[];
+    for(let i=0;i<n0;i++){const x0=-b.hw+2*b.hw*i/n0,x1=-b.hw+2*b.hw*(i+1)/n0;out0.push([[x0,-b.hh],[x1,-b.hh],[x1,b.hh],[x0,b.hh]].map(tr))}
+    return h.rev?out0.reverse():out0}
+  let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity;for(const q of h.p){a=Math.min(a,q[0]);b=Math.min(b,q[1]);c=Math.max(c,q[0]);d=Math.max(d,q[1])}
+  const n=h.u.length,wM=(d-b)*111320*Math.cos(a*Math.PI/180),hM=(c-a)*110540,out=[];
+  for(let i=0;i<n;i++){
+    if(wM>=hM){const x0=b+(d-b)*i/n,x1=b+(d-b)*(i+1)/n;out.push([[a,x0],[a,x1],[c,x1],[c,x0]])}
+    else{const y1=c-(c-a)*i/n,y0=c-(c-a)*(i+1)/n;out.push([[y0,b],[y0,d],[y1,d],[y1,b]])}
+  }
+  return h.rev?out.reverse():out;
+}
+function sliceStyle(hid,u){
+  const outline=cssv('--outline'),box=cssv('--box'),key=hid+'|'+u;
+  if(S.deliver){const o=orderOf(key);const st=delStyle(o?[{o}]:[],false);st.weight=1;st.color=outline;return st}
+  if(heatOn()){const st=statusById(S.heat.status),n=heatCount(key),tot=shown().length;
+    if(!n)return{color:outline,weight:1,opacity:.7,fillColor:box,fillOpacity:.08};
+    const f=n/tot;return{color:outline,weight:1,opacity:.9,fillColor:shadeColor(st.color,f),fillOpacity:.25+.7*f}}
+  const m=mark(S.active,key),st=m&&statusById(m.st);
+  if(st)return{color:outline,weight:1,opacity:.9,fillColor:st.color,fillOpacity:.8};
+  return{color:outline,weight:1,opacity:.8,fillColor:box,fillOpacity:.3};
+}
+function removeSlices(hid){if(slices[hid]){slices[hid].forEach(x=>houseLayer.removeLayer(x));delete slices[hid]}}
+function buildSlices(hid){
+  removeSlices(hid);const h=H[hid];if(!hasUnits(h)||!polys[hid])return;
+  const rects=sliceRects(h);
+  slices[hid]=h.u.map((u,i)=>{const sp=L.polygon(rects[i],Object.assign({renderer,interactive:true},sliceStyle(hid,u)));
+    sp.on('click',e=>{L.DomEvent.stop(e);if(addMode||moveId)return;selectHouse(hid);if(S.deliver){openDelivery(hid);return}openRecord(hid+'|'+u,hid,u)});
+    sp.on('contextmenu',e=>{L.DomEvent.stop(e);if(e.originalEvent)e.originalEvent.preventDefault();startMove(hid)});return sp.addTo(houseLayer)});
+}
+function unitShort(h){const us=h.u;if(us.length<2)return us.slice();let pre=us[0];for(const u of us)while(pre&&u.indexOf(pre)!==0)pre=pre.slice(0,-1);return us.map(u=>u.slice(pre.length)||u)}
+const halos={},stars={};
+function removeHalo(hid){removeSlices(hid);if(halos[hid]){houseLayer.removeLayer(halos[hid]);delete halos[hid]}if(stars[hid]){houseLayer.removeLayer(stars[hid]);delete stars[hid]}}
+function updateHalo(hid){
+  const on=!!polys[hid];
+  if(on&&houseNeedsPay(hid)){if(!halos[hid])halos[hid]=L.circleMarker(H[hid].c,{radius:19,color:'#e03131',weight:3,opacity:.95,dashArray:'6 4',fill:false,interactive:false,renderer}).addTo(houseLayer)}
+  else if(halos[hid]){houseLayer.removeLayer(halos[hid]);delete halos[hid]}
+  if(on&&houseBig(hid)){if(!stars[hid])stars[hid]=L.marker(H[hid].c,{icon:L.divIcon({className:'star-ic',html:'<div aria-hidden="true">\u2605</div>',iconSize:[20,20],iconAnchor:[-6,24]}),interactive:false,keyboard:false,zIndexOffset:500}).addTo(houseLayer)}
+  else if(stars[hid]){houseLayer.removeLayer(stars[hid]);delete stars[hid]}
+}
+function restyle(hid){const p=polys[hid];if(p)p.setStyle(styleFor(hid));
+  if(slices[hid]&&H[hid]&&H[hid].u)slices[hid].forEach((x,i)=>x.setStyle(sliceStyle(hid,H[hid].u[i])));updateHalo(hid)}
+function restyleAll(){for(const id in polys)restyle(id);drawLabels();renderTally()}
+function inView(b,h){return h&&h.c&&b.contains(h.c)}
+function drawHouses(){
+  const z=map.getZoom();
+  if(z<15){if(map.hasLayer(houseLayer))map.removeLayer(houseLayer)}else{if(!map.hasLayer(houseLayer))map.addLayer(houseLayer)}
+  if(z<15)return;
+  const b=map.getBounds().pad(.4);
+  for(const id in H){if(!H[id].x&&!H[id].parent&&inView(b,H[id]))ensurePoly(id)}
+  for(const id in H){if(!H[id].x&&H[id].parent&&inView(b,H[id]))ensurePoly(id)} // townhome unit boxes sit on top
+}
+function drawDeliveryLabels(){
+  if(map.getZoom()<16)return;const b=map.getBounds().pad(.1);const full=map.getZoom()>=18;
+  for(const id in H){const h=H[id];if(!inView(b,h))continue;const list=houseOrders(id);if(!list.length)continue;
+    const done=list.every(x=>x.o.m.delivered);let n=0,due=0;
+    let html='<div class="dl'+(done?' done':'')+'"><span class="a">'+esc(h.n||'?')+'</span>';
+    for(const x of list){due+=x.o.due;for(const it of x.o.items)n+=it.q;
+      if(full){const parts=x.o.items.map(it=>'<b>'+it.q+'</b> '+esc(pcode(it.p)));if(x.o.legacy)parts.push(money(x.o.legacy)+' order');
+        html+='<span class="ln">'+(x.u?'<span class="u">'+esc(x.short)+(x.o.m.delivered?' \u2713':'')+'</span>':'')+parts.join(' \u00b7 ')+'</span>'}}
+    if(!full)html+='<span class="ln"><b>'+n+'</b> item'+(n===1?'':'s')+'</span>';
+    if(due&&!done)html+='<span class="due">'+money(due)+' due</span>';
+    html+='</div>';
+    const mk=L.marker(h.c,{icon:L.divIcon({className:'hl',html,iconSize:null}),keyboard:false,interactive:true,zIndexOffset:done?0:500});
+    mk.on('click',e=>{L.DomEvent.stop(e);onHouseTap(id)});mk.addTo(labelLayer)}
+}
+function drawLabels(){
+  labelLayer.clearLayers();
+  if(S.deliver){drawDeliveryLabels();return}
+  if(map.getZoom()<18)return;
+  const b=map.getBounds().pad(.1);
+  const heat=heatOn(), ids=shown(), others=ids.filter(id=>id!==S.active);
+  let count=0;
+  for(const id in H){
+    const h=H[id]; if(!inView(b,h))continue;
+    if(h.x||(h.multi&&!hasUnits(h)))continue;
+    if(++count>600)break;
+    let html='<div class="hl-in"><span class="hn'+(h.n?'':' none')+'">'+(h.n?esc(h.n):'?')+'</span>';
+    if(houseNeedsPay(id))html+='<span class="unpaid">Not paid</span>';
+    if(hasUnits(h)){const u=unitStats(id);html+='<span class="heatn">'+u.marked+' of '+u.total+' units</span>';
+      if(!heat&&others.length&&others.some(sid=>mark(sid,id)))html+=dotsHtml(id,others)} // marked as one house before it was split
+    else if(heat){const n=heatCount(id);if(n)html+='<span class="heatn">'+n+' of '+ids.length+'</span>'}
+    else if(others.length)html+=dotsHtml(id,others);
+    {const mm=mark(S.active,id);if(!hasUnits(h)&&mm&&mm.st==='comeback'&&mm.back)html+='<span class="heatn" style="background:#f59f00;color:#2a1f00">'+esc(fmtBack(mm.back))+'</span>'}
+    html+='</div>';
+    if(hasUnits(h)&&map.getZoom()>=19){const rs=sliceRects(h),sh=unitShort(h);rs.forEach((r,i)=>{
+      const cc=[(r[0][0]+r[2][0])/2,(r[0][1]+r[2][1])/2];const ud=!heat&&others.length?dotsHtml(id+'|'+h.u[i],others):'';const um=L.marker(cc,{icon:L.divIcon({className:'ul',html:'<div><span>'+esc(sh[i])+'</span>'+ud+'</div>',iconSize:null}),interactive:false,keyboard:false});um.addTo(labelLayer)})}
+    const mk=L.marker(h.c,{icon:L.divIcon({className:'hl',html,iconSize:null}),keyboard:false,interactive:true});
+    mk.on('click',e=>{L.DomEvent.stop(e);onHouseTap(id)});
+    mk.on('contextmenu',e=>{L.DomEvent.stop(e);if(e.originalEvent)e.originalEvent.preventDefault();startMove(id)});
+    mk.addTo(labelLayer);
+  }
+}
+
+/* ---------- loading house footprints from OpenStreetMap ---------- */
+const EPS=['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+const TZ=16;
+const lon2x=(lon,z)=>Math.floor((lon+180)/360*Math.pow(2,z));
+const lat2y=(lat,z)=>Math.floor((1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*Math.pow(2,z));
+const x2lon=(x,z)=>x/Math.pow(2,z)*360-180;
+const y2lat=(y,z)=>{const n=Math.PI-2*Math.PI*y/Math.pow(2,z);return 180/Math.PI*Math.atan(.5*(Math.exp(n)-Math.exp(-n)))};
+const queue=[]; const inflight=new Set(); const failed=new Map(); let pumping=false;
+const AUTO_OUTLINES=false; // boxes are placed by tapping; no background downloads
+function wantTiles(){
+  if(!AUTO_OUTLINES)return;
+  if(map.getZoom()<16){setBanner(map.getZoom()>=13&&!Object.keys(H).length?'Zoom in on your street to load the houses.':null);return}
+  const b=map.getBounds();
+  const x0=lon2x(b.getWest(),TZ),x1=lon2x(b.getEast(),TZ),y0=lat2y(b.getNorth(),TZ),y1=lat2y(b.getSouth(),TZ);
+  if((x1-x0+1)*(y1-y0+1)>12)return;
+  for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){
+    const k=x+'/'+y; if(T.has(k)||inflight.has(k)||queue.includes(k))continue;
+    const f=failed.get(k); if(f&&Date.now()-f<20000)continue;
+    queue.push(k);
+  }
+  pump();
+}
+async function pump(){
+  if(pumping)return; pumping=true;let anyFail=false;
+  while(queue.length){
+    const k=queue.shift(); inflight.add(k);
+    setBanner('Loading house outlines. You can tap any house to mark it now.',true);
+    try{await loadTile(k);T.add(k);saveT();failed.delete(k)}
+    catch(e){anyFail=true;failed.set(k,Date.now());setBanner('House outlines did not load here. Tap any house to mark it anyway, or move the map to try again.');inflight.delete(k);await sleep(2500);continue}
+    inflight.delete(k);
+  }
+  pumping=false; if(anyFail)setTimeout(()=>{if(!pumping)setBanner(null)},7000);else setBanner(null); drawHouses(); drawLabels();
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let banT;
+function setBanner(text,spin){const b=$('#banner');clearTimeout(banT);if(!text){b.hidden=true;b.innerHTML='';return}b.innerHTML=(spin?'<span class="spin" aria-hidden="true"></span>':'')+'<span>'+esc(text)+'</span>';b.hidden=false}
+async function fetchT(url,opts,ms){
+  const ac=new AbortController();const t=setTimeout(()=>ac.abort(),ms);
+  try{return await fetch(url,Object.assign({},opts,{signal:ac.signal}))}finally{clearTimeout(t)}
+}
+let epStart=0; // remember which server answered last
+async function overpass(q){
+  let last;
+  for(let i=0;i<EPS.length;i++){
+    const idx=(epStart+i)%EPS.length;
+    try{const r=await fetchT(EPS[idx],{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)},18000);
+      if(r.ok){const j=await r.json();epStart=idx;return j} last=new Error('HTTP '+r.status)}catch(e){last=e}
+  }
+  throw last||new Error('failed');
+}
+// street address for a spot the user tapped: Esri address points first (house-level in Woodbury), then OpenStreetMap, then the nearest box's street
+async function lookupEsri(c){
+  const r=await fetchT('https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&featureTypes=PointAddress&location='+c[1]+','+c[0],{},7000);
+  if(!r.ok)return null;const j=await r.json();const a=j&&j.address;if(!a||!a.AddNum)return null;
+  if(j.location&&distM(c,[j.location.y,j.location.x])>90)return null; // too far away to be this house
+  const st=(a.Address||'').startsWith(a.AddNum)?a.Address.slice(a.AddNum.length).trim():(a.Address||'');
+  return{n:String(a.AddNum),s:st};
+}
+async function lookupOSM(c){
+  const r=await fetchT('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&lat='+c[0]+'&lon='+c[1],{headers:{'Accept':'application/json'}},7000);
+  if(!r.ok)return null;const j=await r.json();const a=j&&j.address||{};
+  return a.house_number?{n:String(a.house_number),s:a.road||''}:(a.road?{n:'',s:a.road}:null);
+}
+function nearbyStreet(c){let best=null,bd=80;for(const id in H){const h=H[id];if(!h.s||h.temp||h.x)continue;const d=distM(c,h.c);if(d<bd){bd=d;best=h.s}}return best?{n:'',s:best}:null}
+async function lookupAddress(c){
+  try{const e=await lookupEsri(c);if(e)return e}catch(err){}
+  try{const o=await lookupOSM(c);if(o&&o.n)return o;var partial=o}catch(err){}
+  return partial||nearbyStreet(c);
+}
+const SKIP=new Set(['garage','garages','shed','carport','roof','commercial','retail','industrial','warehouse','school','church','office','hospital','service','construction','greenhouse','barn','farm_auxiliary','hut','kiosk','transformer_tower','public','civic','government','supermarket','hotel','university','college','sports_hall','parking','stadium','fire_station','water_tower','toilets','boathouse','gazebo','pavilion','chapel','mosque','temple','synagogue','kindergarten','train_station','bunker','storage_tank','silo','ruins']);
+function areaM2(p){const lat0=p[0][0]*Math.PI/180,mx=111320*Math.cos(lat0),my=110540;let a=0;for(let i=0,j=p.length-1;i<p.length;j=i++){a+=(p[j][1]*mx)*(p[i][0]*my)-(p[i][1]*mx)*(p[j][0]*my)}return Math.abs(a/2)}
+function centroid(p){let la=0,lo=0;for(const q of p){la+=q[0];lo+=q[1]}return[r6(la/p.length),r6(lo/p.length)]}
+function pip(pt,p){let ins=false;for(let i=0,j=p.length-1;i<p.length;j=i++){const yi=p[i][0],xi=p[i][1],yj=p[j][0],xj=p[j][1];if(((yi>pt[0])!==(yj>pt[0]))&&(pt[1]<(xj-xi)*(pt[0]-yi)/(yj-yi)+xi))ins=!ins}return ins}
+function distM(a,b){const dx=(a[1]-b[1])*111320*Math.cos(a[0]*Math.PI/180),dy=(a[0]-b[0])*110540;return Math.sqrt(dx*dx+dy*dy)}
+// boxes you place: a rectangle around the tap point, turned by h.rot degrees
+function boxCorners(c,hw,hh,deg){const r=(deg||0)*Math.PI/180,co=Math.cos(r),si=Math.sin(r),kx=111320*Math.cos(c[0]*Math.PI/180),ky=110540;
+  return[[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]].map(([x,y])=>[r6(c[0]+(x*si+y*co)/ky),r6(c[1]+(x*co-y*si)/kx)])}
+function boxHalf(h){const n=h.u&&h.u.length>1?h.u.length:1;return{hw:n>1?Math.max(7,n*4.5):7,hh:7}}
+function setBoxGeom(h){if(!h||!h.custom)return;const b=boxHalf(h);h.p=boxCorners(h.c,b.hw,b.hh,h.rot||0)}
+function rectBox(c,halfW,halfH){const dl=halfH/110540,dg=halfW/(111320*Math.cos(c[0]*Math.PI/180));return[[r6(c[0]-dl),r6(c[1]-dg)],[r6(c[0]-dl),r6(c[1]+dg)],[r6(c[0]+dl),r6(c[1]+dg)],[r6(c[0]+dl),r6(c[1]-dg)]]}
+function square(c,half){const dl=half/110540,dg=half/(111320*Math.cos(c[0]*Math.PI/180));return[[r6(c[0]-dl),r6(c[1]-dg)],[r6(c[0]-dl),r6(c[1]+dg)],[r6(c[0]+dl),r6(c[1]+dg)],[r6(c[0]+dl),r6(c[1]-dg)]]}
+async function loadTile(k){
+  const [x,y]=k.split('/').map(Number);
+  const s=y2lat(y+1,TZ),n=y2lat(y,TZ),w=x2lon(x,TZ),e=x2lon(x+1,TZ);
+  const bb=[s,w,n,e].map(v=>v.toFixed(6)).join(',');
+  const q='[out:json][timeout:15];(way["building"]('+bb+');node["addr:housenumber"]('+bb+'););out geom tags;';
+  const data=await overpass(q);
+  const nodes=[],bld=[];
+  for(const el of data.elements||[]){
+    const t=el.tags||{};
+    if(el.type==='node'&&t['addr:housenumber'])nodes.push({id:'n'+el.id,c:[el.lat,el.lon],n:t['addr:housenumber'],s:t['addr:street']||''});
+    else if(el.type==='way'&&t.building&&el.geometry&&el.geometry.length>2){
+      const num=t['addr:housenumber']||'';
+      if(SKIP.has(t.building)&&!num)continue;
+      let p=el.geometry.map(g=>[r6(g.lat),r6(g.lon)]);
+      const a=p[0],z=p[p.length-1]; if(a[0]===z[0]&&a[1]===z[1])p.pop();
+      const area=areaM2(p);
+      if(area<40&&!num)continue;
+      if(area>6000&&!num)continue;
+      const bx=[Infinity,Infinity,-Infinity,-Infinity];for(const q of p){bx[0]=Math.min(bx[0],q[0]);bx[1]=Math.min(bx[1],q[1]);bx[2]=Math.max(bx[2],q[0]);bx[3]=Math.max(bx[3],q[1])}
+      bld.push({id:'w'+el.id,p,c:centroid(p),n:num,s:t['addr:street']||'',bx});
+    }
+  }
+  const used=new Set();
+  // address points inside a footprint
+  for(const b of bld)b.ins=[];
+  for(const nd of nodes){
+    for(const b of bld){
+      if(nd.c[0]<b.bx[0]||nd.c[0]>b.bx[2]||nd.c[1]<b.bx[1]||nd.c[1]>b.bx[3])continue;
+      if(pip(nd.c,b.p)){nd.inside=b.id;b.ins.push(nd);break}
+    }
+  }
+  for(const b of bld){
+    const nums=[...new Set(b.ins.map(x=>x.n))];
+    if(nums.length>=2){b.multi=true}            // townhome row: one box per address inside
+    else if(nums.length===1&&!b.n){b.n=nums[0];b.s=b.s||b.ins[0].s}
+    b.ins.forEach(x=>used.add(x.id));
+  }
+  // nearest free address point within 30 m
+  for(const b of bld){
+    if(b.n||b.multi)continue;let best=null,bd=30;
+    for(const nd of nodes){if(used.has(nd.id)||nd.inside)continue;const d=distM(b.c,nd.c);if(d<bd){bd=d;best=nd}}
+    if(best){b.n=best.n;b.s=b.s||best.s;used.add(best.id)}
+  }
+  for(const b of bld){
+    if(b.multi){
+      if(!(H[b.id]&&H[b.id].e))H[b.id]={c:b.c,p:b.p,n:'',s:b.s||b.ins[0].s,multi:1};
+      for(const nd of b.ins){if(H[nd.id]&&H[nd.id].e)continue;const c=[r6(nd.c[0]),r6(nd.c[1])];H[nd.id]={c,p:square(c,3),n:nd.n,s:nd.s,parent:b.id}}
+      continue;
+    }
+    if(H[b.id]&&H[b.id].e)continue;
+    H[b.id]={c:b.c,p:b.p,n:b.n,s:b.s};
+  }
+  // address points with no footprint get a small box
+  for(const nd of nodes){
+    if(used.has(nd.id)||nd.inside)continue;
+    if(H[nd.id]&&H[nd.id].e)continue;
+    const c=[r6(nd.c[0]),r6(nd.c[1])];
+    H[nd.id]={c,p:square(c,6),n:nd.n,s:nd.s};
+  }
+  saveH();
+  drawHouses();
+}
+
+/* ---------- top bar ---------- */
+function renderTop(){
+  const se=seasonById(S.active);$('#seasonPill').textContent=(se?se.name:'Season')+(heatOn()?' + '+(shown().length-1):'');
+  renderTally();
+}
+function renderTally(){
+  const m=S.marks[S.active]||{};
+  if(S.deliver){let todo=0,done=0;const left={};const prods=prodsFor(S.active);
+    for(const k in m){const hid=k.split('|')[0];if(!H[hid]||H[hid].x)continue;const o=orderOf(k);if(!o)continue;if(m[k].delivered){done++;continue}todo++;for(const it of o.items)left[it.p.id]=(left[it.p.id]||0)+it.q}
+    $('#tally').innerHTML='<span class="tchip warn">To deliver <b>'+todo+'</b></span><span class="tchip">Delivered <b>'+done+'</b></span>'+prods.filter(p=>left[p.id]).map(p=>'<span class="tchip">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></span>').join('');
+    const t=seasonTotals(S.active);$('#money').innerHTML='<span>Delivery mode</span>'+(t.unpaid?'<span class="unp">Still to collect <b>'+money(t.unpaid)+'</b></span>':'<span>All paid</span>');return}const cnt={};for(const id in m){const st=m[id].st;if(st)cnt[st]=(cnt[st]||0)+1}
+  let paid=0,unpaid=0;for(const id in m){if(m[id].paid)paid++;else if(needsPay(id))unpaid++}
+  const t=seasonTotals(S.active);
+  let kid='';if(S.lastSeller){let ks=0,kd=0,ky=0;for(const k in m){if(m[k].seller!==S.lastSeller||!H[k.split('|')[0]])continue;ks+=+m[k].sale||0;kd+=+m[k].don||0;if(m[k].st==='yes')ky++}
+    kid='<span class="kid">'+esc(S.lastSeller)+': Sales <b>'+money(ks)+'</b> \u00b7 Donated <b>'+money(kd)+'</b> \u00b7 Total <b>'+money(ks+kd)+'</b> \u00b7 '+ky+' yes</span>'}
+  $('#money').innerHTML=kid+'<span>Sales <b>'+money(t.sale)+'</b></span>'+(t.unpaid?'<span class="unp">Not paid <b>'+money(t.unpaid)+'</b></span>':'')+'<span>Donations <b>'+money(t.don)+'</b></span><span class="gt">Total <b>'+money(t.total)+'</b></span>';
+  $('#tally').innerHTML=S.statuses.map(s=>'<span class="tchip"><i style="background:'+s.color+'"></i>'+esc(s.label)+' <b>'+(cnt[s.id]||0)+'</b></span>').join('')+'<span class="tchip">Paid <b>'+paid+'</b></span>'+(unpaid?'<span class="tchip warn">Not paid <b>'+unpaid+'</b></span>':'');
+}
+$('#seasonPill').addEventListener('click',()=>selectTab('seasons'));
+function renderScoutSel(){const sel=$('#scoutSel');sel.innerHTML='<option value="">Scout: none</option>'+sellers().map(n=>'<option value="'+esc(n)+'"'+(S.lastSeller===n?' selected':'')+'>'+esc(n)+'</option>').join('')}
+$('#scoutSel').addEventListener('change',e=>{S.lastSeller=e.target.value;saveS();renderTally();toast(S.lastSeller?S.lastSeller+' is selling now. New doors count for '+S.lastSeller+'.':'No scout picked')});
+renderScoutSel();
+
+/* ---------- sheets ---------- */
+const sheet=$('#sheet');
+function openSheet(html,tall){sheet.className='sheet'+(tall?' tall':'');sheet.innerHTML='<div class="grab" aria-hidden="true"></div>'+html;sheet.hidden=false}
+function closeSheet(){sheet.hidden=true;sheet.innerHTML='';if(selected){const s=selected;selected=null;if(H[s]&&H[s].temp)dropTemp(s);else restyle(s)}sheetKind=null;setTabs('map')}
+function dropTemp(id){removeHalo(id);if(polys[id]){houseLayer.removeLayer(polys[id]);delete polys[id]}delete H[id];drawLabels()}
+function keepHouse(hid){if(H[hid]&&H[hid].temp){delete H[hid].temp;saveH()}}
+let sheetKind=null;
+const X='<button class="x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>';
+sheet.addEventListener('click',e=>{if(e.target.closest('[data-close]'))closeSheet()});
+
+/* house sheet */
+function selectHouse(hid){const prev=selected;selected=hid;if(prev&&prev!==hid){if(H[prev]&&H[prev].temp)dropTemp(prev);else restyle(prev)}restyle(hid)}
+function onHouseTap(hid){
+  if(addMode||moveId)return;
+  const prev=selected;selected=hid;if(prev&&prev!==hid){if(H[prev]&&H[prev].temp)dropTemp(prev);else restyle(prev)}restyle(hid);
+  if(S.deliver){openDelivery(hid);return}
+  openHouse(hid);
+}
+let noteT;
+const BACK='<button class="btn small" data-back>All units</button>';
+function openHouse(hid,editNumber){
+  const h=H[hid];if(!h)return;
+  if(hasUnits(h))return openBuilding(hid,editNumber);
+  openRecord(hid,hid,null,editNumber);
+}
+function addrEditor(h,open){
+  return '<div id="numEdit"'+(open?'':' hidden')+'><p class="label">House number and street</p><div class="row"><input type="text" id="numIn" autocapitalize="characters" autocomplete="off" placeholder="10930" value="'+esc(h.n||'')+'" style="flex:0 0 32%"><input type="text" id="strIn" placeholder="Street name" value="'+esc(h.s||'')+'"></div><div class="row" style="margin-top:8px"><button class="btn primary" id="numSave">Save address</button>'+'</div></div>';
+}
+function unitEditor(h,open){
+  return '<div id="unitEdit"'+(open?'':' hidden')+'><p class="label">Units in this building</p><p class="hint" style="margin-bottom:8px">For townhomes or apartments. Type each door number, one per line or separated by commas.</p>'+
+    '<textarea id="unitsIn" placeholder="10930, 10932, 10934 or 101, 102, 103">'+esc((h.u||[]).join(', '))+'</textarea>'+
+    '<div class="row" style="margin-top:8px"><span class="muted" style="flex:none">Quick fill</span><input type="text" id="uFrom" autocapitalize="characters" autocomplete="off" placeholder="10853A" aria-label="First unit"><span class="muted" style="flex:none">to</span><input type="text" id="uTo" autocapitalize="characters" autocomplete="off" placeholder="10853D" aria-label="Last unit"><button class="btn small" id="uFill">Add</button></div>'+
+    '<div class="row" style="margin-top:8px"><button class="btn primary" id="uSave">Save units</button></div></div>';
+}
+// move a box: hold it (or tap Move box), then drag the handle or tap the new spot
+let moveId=null,moveHandle=null;
+function moveTo(hid,ll){const h=H[hid];if(!h)return;const dl=ll.lat-h.c[0],dg=ll.lng-h.c[1];h.c=[r6(ll.lat),r6(ll.lng)];
+  if(h.custom)setBoxGeom(h);else h.p=h.p.map(q=>[r6(q[0]+dl),r6(q[1]+dg)]);
+  if(polys[hid])polys[hid].setLatLngs(h.p);buildSlices(hid);if(halos[hid])halos[hid].setLatLng(h.c);if(stars[hid])stars[hid].setLatLng(h.c)}
+function startMove(hid){
+  if(!H[hid])return;if(moveId)endMove();if(sheetKind)closeSheet();keepHouse(hid);
+  moveId=hid;selected=hid;restyle(hid);if(map.hasLayer(labelLayer))map.removeLayer(labelLayer);
+  moveHandle=L.marker(H[hid].c,{draggable:true,keyboard:false,zIndexOffset:2000,icon:L.divIcon({className:'mv',html:'<div aria-hidden="true">\u2725</div>',iconSize:[46,46],iconAnchor:[23,23]})}).addTo(map);
+  moveHandle.on('drag',e=>moveTo(hid,e.target.getLatLng()));moveHandle.on('dragend',()=>saveH());
+  if(navigator.vibrate)try{navigator.vibrate(30)}catch(e){}
+  setBanner('Drag the yellow handle, or tap where the box goes. Tap here when done.');
+}
+function endMove(){if(!moveId)return;const id=moveId;moveId=null;if(moveHandle){map.removeLayer(moveHandle);moveHandle=null}
+  saveH();map.addLayer(labelLayer);drawLabels();selected=null;restyle(id);setBanner(null);toast('Box moved')}
+function redrawHouse(hid){removeHalo(hid);if(polys[hid]){houseLayer.removeLayer(polys[hid]);delete polys[hid]}ensurePoly(hid);drawLabels()}
+function wireEditors(hid,reopen){
+  const q=s=>sheet.querySelector(s);
+  const turn=d=>{const h=H[hid];keepHouse(hid);h.rot=(((h.rot||0)+d)%360+360)%360;setBoxGeom(h);saveH();redrawHouse(hid)};
+  const rl=q('#rotL');if(rl)rl.addEventListener('click',()=>turn(10));
+  const rr=q('#rotR');if(rr)rr.addEventListener('click',()=>turn(-10));
+  const mb=q('#moveB');if(mb)mb.addEventListener('click',()=>startMove(hid));
+  const rv=q('#revU');if(rv)rv.addEventListener('click',()=>{H[hid].rev=!H[hid].rev;saveH();redrawHouse(hid);toast(H[hid].rev?'Units now run the other way':'Units back in original order')});
+  const no=q('#numOpen');if(no)no.addEventListener('click',()=>{q('#numEdit').hidden=false;no.hidden=true;q('#numIn').focus()});
+  const uo=q('#unitOpen');if(uo)uo.addEventListener('click',()=>{q('#unitEdit').hidden=false;uo.hidden=true;q('#unitsIn').focus()});
+  const saveAddr=(quiet)=>{const n=q('#numIn').value.trim(),st=q('#strIn').value.trim();if(n===(H[hid].n||'')&&st===(H[hid].s||''))return;
+    keepHouse(hid);H[hid].n=n;H[hid].s=st;H[hid].e=1;saveH();drawLabels();const t=sheet.querySelector('.sh-title h2');if(t&&!t.dataset.unit)t.textContent=addrOf(H[hid])||'House with no number';if(!quiet)toast('Address saved')};
+  const ns=q('#numSave');if(ns)ns.addEventListener('click',()=>saveAddr(false));
+  ['#numIn','#strIn'].forEach(sel=>{const i=q(sel);if(!i)return;i.addEventListener('change',()=>saveAddr(true));i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveAddr(false);i.blur()}})});
+  const uf=q('#uFill');if(uf)uf.addEventListener('click',()=>{
+    const fv=q('#uFrom').value.trim(),tv=q('#uTo').value.trim();const add=[];
+    const lf=fv.match(/^(.*?)([A-Za-z])$/);let lt=tv.match(/^(.*?)([A-Za-z])$/);
+    if(lf&&lt&&lt[1]===''&&lf[1])lt=[tv,lf[1],lt[2]]; // "10855A to D" means 10855A to 10855D
+    if(lf&&lt&&lf[1]===lt[1]){ // letter units like 10853A to 10853D
+      const up=lf[2]===lf[2].toUpperCase(),c0=lf[2].toUpperCase().charCodeAt(0),c1=lt[2].toUpperCase().charCodeAt(0);
+      if(c1<c0){toast('The last letter has to come after the first.');return}
+      for(let c=c0;c<=c1;c++){const ch=String.fromCharCode(c);add.push(lf[1]+(up?ch:ch.toLowerCase()))}
+    }else{
+      const a=parseInt(fv,10),b=parseInt(tv,10);
+      if(isNaN(a)||isNaN(b)||b<a||b-a>400){toast('Enter a first and last unit, like 10853A to 10853D or 101 to 124.');return}
+      const step=a>=1000?2:1; // street numbers on one side of a row skip by 2
+      for(let i=a;i<=b;i+=step)add.push(String(i));
+    }
+    const cur=q('#unitsIn').value.trim();q('#unitsIn').value=(cur?cur+', ':'')+add.join(', ')});
+  const us=q('#uSave');if(us)us.addEventListener('click',()=>{
+    const list=[...new Set(q('#unitsIn').value.split(/[\n,;]+/).map(x=>x.trim()).filter(Boolean))];
+    keepHouse(hid);if(list.length)H[hid].u=list;else delete H[hid].u;H[hid].e=1;
+    if(H[hid].custom){setBoxGeom(H[hid]);H[hid].wd=1} // a row of units gets a wider box
+    saveH();
+    removeHalo(hid);if(polys[hid]){houseLayer.removeLayer(polys[hid]);delete polys[hid]}drawHouses();
+    restyle(hid);drawLabels();renderTally();openHouse(hid);toast(list.length?list.length+' units saved':'Units removed')});
+  const del=q('#delHouse');
+  if(del)del.addEventListener('click',async()=>{
+    if(H[hid].temp){closeSheet();return}
+    if(!await confirmBox('Delete this box and its notes from every season?','Delete box'))return;
+    removeHalo(hid);if(polys[hid]){houseLayer.removeLayer(polys[hid]);delete polys[hid]}
+    for(const sid in S.marks)for(const k in S.marks[sid])if(k===hid||k.indexOf(hid+'|')===0)delete S.marks[sid][k];
+    if(H[hid].custom)delete H[hid];else{H[hid].x=1;H[hid].e=1} // map outlines stay hidden after reloads
+    selected=null;saveH();saveS();closeSheet();drawLabels();renderTally();toast('Box deleted')});
+}
+function historyHtml(key){
+  const others=S.seasons.filter(s=>s.id!==S.active).slice().reverse();if(!others.length)return'';
+  let hist='';
+  for(const s of others){const mm=mark(s.id,key);const st=mm&&statusById(mm.st);
+    hist+='<div class="hist-row"><div class="yr">'+esc(s.name)+'</div><div style="min-width:0">'+(st?'<div class="st"><i style="background:'+st.color+'"></i>'+esc(st.label)+'</div>':'<div class="muted">No record</div>')+(mm&&(mm.sale||mm.don)?'<div class="nt">Sales '+money(mm.sale)+', donation '+money(mm.don)+'</div>':'')+(mm&&mm.note?'<div class="nt">'+esc(mm.note)+'</div>':'')+'</div></div>'}
+  return '<div><p class="label">Past seasons</p><div class="hist">'+hist+'</div></div>';
+}
+// one door: a house, a townhome, or a unit inside a building (key = hid|unit)
+function openRecord(key,hid,unit,editNumber){
+  sheetKind='house';setTabs('map');
+  const h=H[hid];const se=seasonById(S.active);const m=mark(S.active,key)||{};
+  const title=unit?'Unit '+esc(unit):(h.n?esc(addrOf(h)):'House with no number');
+  const sub=unit?esc(addrOf(h)||'Building')+' · '+esc(se?se.name:''):esc(se?se.name:'')+' season'+(h.n&&!h.s?' · street name not on file':'');
+  openSheet(
+    '<div class="sh-head"><div class="sh-title"><h2>'+title+'</h2><p>'+sub+'</p></div>'+X+'</div>'+
+    '<div class="sh-body">'+
+      (unit?'<div class="row">'+BACK+'</div>':addrEditor(h,true))+
+      '<div class="soldby"><label for="soldBy" class="muted" style="flex:none;font-weight:600">Sold by</label><select id="soldBy"><option value="">Not set</option>'+sellers().map(n=>'<option'+((m.seller||'')===n?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select></div>'+
+      (()=>{const b=bigBuyer(key);return b?'<p class="big" id="bigLine"><span>\u2605</span>Big buyer: '+money(b.amt)+' '+b.kind+' in '+esc(b.season)+'</p>':'<p class="big" id="bigLine" hidden></p>'})()+
+      '<div><p class="label">What happened</p><div class="chips" id="chips">'+
+        S.statuses.map(s=>'<button class="chip" data-st="'+esc(s.id)+'" aria-pressed="'+(m.st===s.id)+'"><i style="background:'+s.color+'"></i>'+esc(s.label)+'</button>').join('')+
+      '</div></div>'+
+      '<div class="backbox" id="backBox"'+(m.st==='comeback'?'':' hidden')+'><label for="backAt"><b>Come back when?</b></label><input type="datetime-local" id="backAt" value="'+esc(m.back||'')+'"><span class="hint" id="backShow">'+(m.back?esc(fmtBack(m.back)):'Pick a day and time.')+'</span></div>'+
+      '<div><p class="label">Order for '+esc(se?se.name:'')+'</p><div class="items" id="items">'+
+        prodsFor(S.active).map(p=>{const q=(m.items&&+m.items[p.id])||0;return '<div class="item'+(q?' has':'')+'"><div class="it-name">'+esc(p.label)+'<small>'+money(p.price)+'</small></div><div class="step"><button type="button" data-dec="'+esc(p.id)+'" aria-label="One less '+esc(p.label)+'">\u2212</button><input type="text" inputmode="numeric" data-qty="'+esc(p.id)+'" aria-label="'+esc(p.label)+' quantity" placeholder="0" value="'+(q||'')+'"><button type="button" data-inc="'+esc(p.id)+'" aria-label="One more '+esc(p.label)+'">+</button></div></div>'}).join('')+
+      '</div>'+(!m.items&&m.sale?'<p class="legacy" id="legacy">Sales entered before item boxes: '+money(m.sale)+'. Adding items replaces it.</p>':'')+
+      '<div class="amts" style="margin-top:12px;grid-template-columns:1fr"><label class="amt"><span>Donation</span><div class="in"><b>$</b><input type="text" inputmode="decimal" id="amtDon" placeholder="0" value="'+(m.don?m.don:'')+'"></div></label></div>'+
+      '<div class="order-sum" id="orderSum"></div></div>'+
+      '<div class="paidbox"><div class="row"><div style="flex:1"><b>Paid</b> <span class="pay-warn" id="payWarn"'+(needsPay(key)?'':' hidden')+'>Not paid yet</span></div><label class="switch"><input type="checkbox" id="paidOn" aria-label="Paid"'+(m.paid?' checked':'')+'><span></span></label></div>'+
+        '<div class="pay" id="payWays"'+(m.paid?'':' hidden')+'>'+[['cash','Cash'],['check','Check'],['venmo','Venmo']].map(w=>'<label><input type="checkbox" data-pay="'+w[0]+'"'+(m.pay&&m.pay[w[0]]?' checked':'')+'>'+w[1]+'</label>').join('')+'</div></div>'+
+      '<div class="rcpt" id="rcpt"'+(((+m.sale)||(+m.don))?'':' hidden')+'><b>Receipt</b><input type="tel" id="rcPhone" placeholder="Their cell number" autocomplete="off" value="'+esc(m.phone||'')+'"><div class="row" style="flex-wrap:wrap"><button class="btn primary small" id="rcText" type="button">Text receipt</button><button class="btn small" id="rcCopy" type="button">Copy receipt</button></div></div>'+
+      '<div><p class="label"><label for="note">Notes for '+esc(se?se.name:'')+'</label></p><textarea id="note" placeholder="Bought 2 caramel corn. Has a dog. Ask for Jen.">'+esc(m.note||'')+'</textarea></div>'+
+      historyHtml(key)+
+      (unit?'':unitEditor(h,false)+
+        '<div class="row" style="flex-wrap:wrap">'+(h.parent?'':'<button class="btn small" id="unitOpen">Split into units</button>')+'<button class="btn small" id="moveB">Move box</button>'+(h.custom?'<button class="btn small" id="rotL" aria-label="Rotate box left">\u21ba Rotate</button><button class="btn small" id="rotR" aria-label="Rotate box right">Rotate \u21bb</button>':'')+'</div>')+
+      '<div class="danger-row"><button class="btn small" id="clearStop">Clear '+esc(se?se.name:'')+' stop</button>'+(unit?'':'<button class="btn small danger" id="delHouse">Delete box</button>')+'</div>'+
+    '</div>');
+  sheet.querySelector('#chips').addEventListener('click',e=>{
+    const b=e.target.closest('.chip');if(!b)return;const st=b.getAttribute('data-st');
+    const cur=mark(S.active,key)||{};const next=cur.st===st?null:st;
+    setMark(key,hid,{st:next});
+    {const sv=(mark(S.active,key)||{}).seller;const sbx=sheet.querySelector('#soldBy');if(sbx&&sv)sbx.value=sv}
+    sheet.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(c.getAttribute('data-st')===next)));
+    const bb=sheet.querySelector('#backBox');if(bb){bb.hidden=next!=='comeback';
+      if(next==='comeback'){const bi=sheet.querySelector('#backAt');bb.scrollIntoView({block:'nearest'});try{bi.focus();bi.showPicker&&bi.showPicker()}catch(err){}}}
+  });
+  const bi=sheet.querySelector('#backAt');if(bi)bi.addEventListener('change',()=>{setMark(key,hid,{back:bi.value});sheet.querySelector('#backShow').textContent=bi.value?fmtBack(bi.value):'Pick a day and time.'});
+  const rcp=sheet.querySelector('#rcPhone');if(rcp)rcp.addEventListener('change',()=>setMark(key,hid,{phone:rcp.value.trim()}));
+  let seller=(mark(S.active,key)||{}).seller||'';
+  const sb=sheet.querySelector('#soldBy');if(sb)sb.addEventListener('change',()=>{seller=sb.value;setMark(key,hid,{seller});toast(seller?'Credited to '+seller:'No scout credited')});
+  if(sb){const cur=(mark(S.active,key)||{}).seller;if(cur)sb.value=cur}
+  const rct=sheet.querySelector('#rcText');if(rct)rct.addEventListener('click',()=>{const ph=rcp.value.replace(/[^0-9+]/g,'');setMark(key,hid,{phone:rcp.value.trim()});
+    seller=(mark(S.active,key)||{}).seller||seller;
+    if(!seller){toast('Pick who sold it in Sold by first.');sb&&sb.scrollIntoView({block:'center'});sb&&sb.focus();return}
+    if(!ph){toast('Type their cell number first.');rcp.focus();return}
+    const a=document.createElement('a');if(seller)setMark(key,hid,{seller});a.href='sms:'+ph+'?body='+encodeURIComponent(receiptText(key,hid,unit,seller));document.body.appendChild(a);a.click();a.remove()});
+  const rcc=sheet.querySelector('#rcCopy');if(rcc)rcc.addEventListener('click',()=>copyText(receiptText(key,hid,unit,(mark(S.active,key)||{}).seller||seller)));
+  sheet.querySelector('#note').addEventListener('input',e=>{const v=e.target.value;clearTimeout(noteT);noteT=setTimeout(()=>{setMark(key,hid,{note:v})},350)});
+  let amtT;
+  const showSum=()=>{const mm=mark(S.active,key)||{};const sale=+mm.sale||0,don=+mm.don||0;
+    sheet.querySelector('#orderSum').innerHTML=sale||don?'<span>Items <b>'+money(sale)+'</b></span><span>Donation <b>'+money(don)+'</b></span><span>Total <b>'+money(sale+don)+'</b></span>':''};
+  const saveOrder=()=>{clearTimeout(amtT);const items={};let any=false;
+    sheet.querySelectorAll('[data-qty]').forEach(i=>{const q=Math.max(0,parseInt(i.value,10)||0);i.closest('.item').classList.toggle('has',q>0);if(q){items[i.getAttribute('data-qty')]=q;any=true}});
+    const don=parseAmt(sheet.querySelector('#amtDon').value);const cur=mark(S.active,key)||{};
+    const patch={don};
+    if(any||cur.items){patch.items=items;patch.sale=itemsTotal(S.active,items);const lg=sheet.querySelector('#legacy');if(lg)lg.remove()}
+    setMark(key,hid,patch);showSum();const rb=sheet.querySelector('#rcpt');if(rb){const mm=mark(S.active,key)||{};rb.hidden=!((+mm.sale)||(+mm.don))}};
+  sheet.querySelector('#items').addEventListener('click',e=>{const b=e.target.closest('[data-inc],[data-dec]');if(!b)return;
+    const id=b.getAttribute('data-inc')||b.getAttribute('data-dec');const i=sheet.querySelector('[data-qty="'+id+'"]');
+    const q=Math.max(0,(parseInt(i.value,10)||0)+(b.hasAttribute('data-inc')?1:-1));i.value=q||'';saveOrder()});
+  sheet.querySelectorAll('[data-qty]').forEach(i=>{i.addEventListener('input',()=>{clearTimeout(amtT);amtT=setTimeout(saveOrder,400)});i.addEventListener('blur',saveOrder)});
+  const dn=sheet.querySelector('#amtDon');dn.addEventListener('input',()=>{clearTimeout(amtT);amtT=setTimeout(saveOrder,400)});dn.addEventListener('blur',saveOrder);
+  showSum();
+  sheet.querySelector('#paidOn').addEventListener('change',e=>{const on=e.target.checked;sheet.querySelector('#payWays').hidden=!on;
+    if(!on)sheet.querySelectorAll('[data-pay]').forEach(c=>c.checked=false);setMark(key,hid,{paid:on,pay:on?(mark(S.active,key)||{}).pay||{}:{}})});
+  sheet.querySelector('#payWays').addEventListener('change',e=>{const c=e.target.closest('[data-pay]');if(!c)return;const pay=Object.assign({},(mark(S.active,key)||{}).pay);pay[c.getAttribute('data-pay')]=c.checked;setMark(key,hid,{paid:true,pay})});
+  sheet.querySelector('#clearStop').addEventListener('click',()=>{clearTimeout(noteT);if(S.marks[S.active])delete S.marks[S.active][key];saveS();restyle(hid);renderTally();drawLabels();
+    if(H[hid]&&H[hid].temp){closeSheet();return}openRecord(key,hid,unit);toast('Cleared. It looks like you never stopped there.')});
+  const bk=sheet.querySelector('[data-back]');if(bk)bk.addEventListener('click',()=>openBuilding(hid));
+  if(!unit)wireEditors(hid,()=>openHouse(hid));
+  if(editNumber)setTimeout(()=>{const i=sheet.querySelector('#numIn');i&&i.focus()},50);
+}
+// a building split into units: pick a door
+function openBuilding(hid,editNumber){
+  sheetKind='house';setTabs('map');
+  const h=H[hid];const se=seasonById(S.active);const u=unitStats(hid);
+  const grid=h.u.map(x=>{const mm=mark(S.active,hid+'|'+x);const st=mm&&statusById(mm.st);
+    return '<button class="chip" data-unit="'+esc(x)+'" aria-label="Unit '+esc(x)+(st?', '+esc(st.label):'')+'"><i style="background:'+(st?st.color:'transparent')+';'+(st?'':'border:2px dashed var(--line)')+'"></i>'+esc(x)+(bigBuyer(hid+'|'+x)?' <span style="color:#f5b301">\u2605</span>':'')+(needsPay(hid+'|'+x)?'<span class="pay-warn" style="margin-left:auto;font-size:11px">Not paid</span>':(mm&&mm.note?'<span class="muted" style="margin-left:auto;font-size:12px">note</span>':''))+'</button>'}).join('');
+  openSheet(
+    '<div class="sh-head"><div class="sh-title"><h2>'+(h.n||h.s?esc(addrOf(h)):'Building')+'</h2><p>'+u.total+' units · '+u.marked+' marked in '+esc(se?se.name:'')+'</p></div>'+X+'</div>'+
+    '<div class="sh-body">'+
+      addrEditor(h,true)+
+      '<div><p class="label">Tap a door</p><div class="chips" id="units" style="grid-template-columns:repeat(auto-fill,minmax(92px,1fr))">'+grid+'</div></div>'+
+      unitEditor(h,false)+
+      '<div class="row" style="flex-wrap:wrap"><button class="btn small" id="unitOpen">Edit units</button>'+(h.custom?'<button class="btn small" id="rotL" aria-label="Rotate box left">\u21ba Rotate</button><button class="btn small" id="rotR" aria-label="Rotate box right">Rotate \u21bb</button>':'')+(h.u.length>1?'<button class="btn small" id="revU">Flip unit order</button>':'')+'<button class="btn small" id="moveB">Move box</button></div>'+
+      '<div class="danger-row"><button class="btn small danger" id="delHouse">Delete box</button></div>'+
+    '</div>',true);
+  sheet.querySelector('#units').addEventListener('click',e=>{const b=e.target.closest('[data-unit]');if(b){const x=b.getAttribute('data-unit');openRecord(hid+'|'+x,hid,x)}});
+  wireEditors(hid,()=>openHouse(hid));
+}
+function openDelivery(hid){
+  sheetKind='house';setTabs('map');const h=H[hid];const list=houseOrders(hid);
+  if(!list.length){openSheet('<div class="sh-head"><div class="sh-title"><h2>'+esc(addrOf(h)||'House')+'</h2><p>No order this season</p></div>'+X+'</div><div class="sh-body"><button class="btn" id="dFull">Open full details</button></div>');
+    sheet.querySelector('#dFull').addEventListener('click',()=>openHouse(hid));return}
+  let html='';
+  list.forEach((x,i)=>{const m=x.o.m;const by=m.pay?['cash','check','venmo'].filter(w=>m.pay[w]).map(w=>w[0].toUpperCase()+w.slice(1)).join(' + '):'';
+    html+='<div class="dcard'+(m.delivered?' done':'')+'">'+(x.u?'<h3>Unit '+esc(x.u)+'</h3>':'')+
+      x.o.items.map(it=>'<div class="drow"><b>'+it.q+'</b><span>'+esc(it.p.label)+'</span></div>').join('')+
+      (x.o.legacy?'<div class="drow"><b>'+money(x.o.legacy)+'</b><span>order, items not listed</span></div>':'')+
+      (m.paid?'<div class="dpay ok">Paid'+(by?' by '+esc(by):'')+'</div>':'<div class="dpay due">Not paid: '+money(x.o.due)+' due</div><div class="row" style="flex-wrap:wrap">'+['Cash','Check','Venmo'].map(w=>'<button class="btn small" data-paid="'+i+'" data-w="'+w.toLowerCase()+'">Paid by '+w+'</button>').join('')+'</div>')+
+      (m.note?'<div class="hint">'+esc(m.note)+'</div>':'')+
+      '<button class="big-btn'+(m.delivered?' undo':'')+'" data-dlv="'+i+'">'+(m.delivered?'Delivered \u2713 (tap to undo)':'Mark delivered')+'</button></div>'});
+  openSheet('<div class="sh-head"><div class="sh-title"><h2>'+esc(addrOf(h)||'House')+'</h2><p>Delivery for '+esc((seasonById(S.active)||{}).name||'')+'</p></div>'+X+'</div>'+
+    '<div class="sh-body">'+html+'<button class="btn" id="dFull">Open full details</button></div>',list.length>1);
+  sheet.querySelector('#dFull').addEventListener('click',()=>openHouse(hid));
+  sheet.querySelectorAll('[data-dlv]').forEach(b=>b.addEventListener('click',()=>{const x=list[+b.getAttribute('data-dlv')];const on=!x.o.m.delivered;
+    setMark(x.key,hid,{delivered:on});drawLabels();
+    if(on&&houseOrders(hid).every(y=>y.o.m.delivered)){toast('Delivered');closeSheet()}else openDelivery(hid)}));
+  sheet.querySelectorAll('[data-paid]').forEach(b=>b.addEventListener('click',()=>{const x=list[+b.getAttribute('data-paid')];const pay={};pay[b.getAttribute('data-w')]=true;
+    setMark(x.key,hid,{paid:true,pay});drawLabels();openDelivery(hid)}));
+}
+function setMark(key,hid,patch){
+  keepHouse(hid);
+  if(!S.marks[S.active])S.marks[S.active]={};
+  const v=Object.assign({st:null,note:'',paid:false,pay:{},sale:0,don:0},S.marks[S.active][key],patch,{t:Date.now()});
+  if(!v.seller&&S.lastSeller&&('st' in patch||'items' in patch||'don' in patch))v.seller=S.lastSeller;
+  if(!v.st&&!v.note&&!v.paid&&!v.sale&&!v.don)delete S.marks[S.active][key];else S.marks[S.active][key]=v;
+  if(!patch.note)S.dirty=(S.dirty||0)+1; // typing a note counts once per save, not per letter
+  saveS();restyle(hid);renderTally();if(map.getZoom()>=18)drawLabels();renderSafe();
+  const w=sheet.querySelector('#payWarn');if(w)w.hidden=!needsPay(key);
+  const bl=sheet.querySelector('#bigLine');if(bl){const b=bigBuyer(key);bl.hidden=!b;if(b)bl.innerHTML='<span>\u2605</span>Big buyer: '+money(b.amt)+' '+b.kind+' in '+esc(b.season)}
+}
+
+/* seasons sheet */
+function openSeasons(){
+  sheetKind='seasons';
+  const list=S.seasons.slice().reverse().map(s=>{
+    const n=Object.values(S.marks[s.id]||{}).filter(m=>m.st).length;
+    const act=s.id===S.active;
+    const t=seasonTotals(s.id);
+    return '<div class="li"><div class="nm">'+esc(s.name)+'<small>'+n+' door'+(n===1?'':'s')+' marked</small><span class="money-line">Sales '+money(t.sale)+' · Donations '+money(t.don)+' · Total '+money(t.total)+'</span></div>'+
+      (act?'<span class="tag">Editing</span>':'<button class="btn small" data-edit="'+s.id+'">Edit this one</button>')+
+      '<label class="switch" title="Show on map"><input type="checkbox" data-show="'+s.id+'" aria-label="Show '+esc(s.name)+' on map"'+(act||S.show.includes(s.id)?' checked':'')+(act?' disabled':'')+'><span></span></label></div>'}).join('');
+  const st=statusById(S.heat.status)||S.statuses[0];
+  const tot=shown().length;
+  let ramp='';for(let i=1;i<=Math.max(tot,1);i++)ramp+='<i style="background:'+shadeColor(st.color,i/Math.max(tot,1))+';opacity:'+(.25+.7*i/Math.max(tot,1))+'"></i>';
+  openSheet(
+    '<div class="sh-head"><div class="sh-title"><h2>Seasons</h2><p>Each sales season is its own map layer.</p></div>'+X+'</div>'+
+    '<div class="sh-body">'+
+      (()=>{const m=S.marks[S.active]||{};const rows={};const add=n=>rows[n]=rows[n]||{doors:0,yes:0,sale:0,don:0};
+        sellers().forEach(add);
+        for(const k in m){const mm=m[k];if(!H[k.split('|')[0]])continue;const n=mm.seller||'Not assigned';add(n);const r=rows[n];if(mm.st)r.doors++;if(mm.st==='yes')r.yes++;r.sale+=+mm.sale||0;r.don+=+mm.don||0}
+        const names=Object.keys(rows).filter(n=>n!=='Not assigned'||rows[n].doors||rows[n].sale||rows[n].don);
+        names.sort((a,b)=>(a==='Not assigned')-(b==='Not assigned')||(rows[b].sale+rows[b].don)-(rows[a].sale+rows[a].don));
+        const top=names.find(n=>n!=='Not assigned'&&(rows[n].sale+rows[n].don)>0);
+        return '<div><p class="label">Scout scoreboard</p><div class="board"><table><thead><tr><th>Scout</th><th>Sales</th><th>Donated</th><th>Total</th><th>Doors</th><th>Yes</th></tr></thead><tbody>'+
+          names.map(n=>{const r=rows[n];return '<tr'+(n===top?' class="lead"':'')+'><td>'+(n===top?'\ud83d\udc51 ':'')+esc(n)+'</td><td>'+money(r.sale)+'</td><td>'+money(r.don)+'</td><td>'+money(r.sale+r.don)+'</td><td>'+r.doors+'</td><td>'+r.yes+'</td></tr>'}).join('')+
+          '</tbody></table></div><p class="hint" style="margin-top:8px">Doors counts every house a scout marked, yes or no. Pick who is selling with the Scout menu at the top.</p></div>'})()+
+      '<div><p class="label">Your seasons</p><div class="list">'+list+'</div><p class="hint" style="margin-top:8px">Switch on past seasons to see them as small dots under each house number. Zoom in close to see the dots.</p></div>'+
+      (()=>{const m=S.marks[S.active]||{};const cb=Object.keys(m).filter(k=>m[k].st==='comeback'&&H[k.split('|')[0]]).map(k=>({k,hid:k.split('|')[0],unit:k.split('|')[1],back:m[k].back||''}));
+        if(!cb.length)return'';cb.sort((a,b)=>(a.back?0:1)-(b.back?0:1)||a.back.localeCompare(b.back));
+        return '<div><p class="label">Come back list</p><div class="list cblist">'+cb.map(x=>'<button type="button" data-cb="'+esc(x.hid)+'"><b>'+(x.back?esc(fmtBack(x.back)):'No time set')+'</b><span>'+esc(addrOf(H[x.hid])||'House')+(x.unit?' unit '+esc(x.unit):'')+'</span></button>').join('')+'</div></div>'})()+
+      '<div class="heatbox"><div class="row"><div style="flex:1"><b>Combine shown seasons</b><div class="hint">Houses get darker for each season they landed on one status.</div></div><label class="switch"><input type="checkbox" id="heatOn" aria-label="Combine shown seasons"'+(S.heat.on?' checked':'')+'><span></span></label></div>'+
+        '<div class="row"><label for="heatSt" class="muted" style="flex:none">Status</label><select id="heatSt">'+S.statuses.map(s=>'<option value="'+esc(s.id)+'"'+(s.id===st.id?' selected':'')+'>'+esc(s.label)+'</option>').join('')+'</select></div>'+
+        '<div><div class="ramp">'+ramp+'</div><div class="ramp-lab"><span>1 season</span><span>'+tot+' of '+tot+' seasons</span></div></div>'+
+        (tot<2?'<p class="hint">Switch on at least one past season above to combine.</p>':'')+
+      '</div>'+
+      '<div><button class="btn primary" id="csvBtn">Export '+esc((seasonById(S.active)||{}).name||'')+' orders as CSV</button><p class="hint" style="margin-top:8px">Item totals on top, then each house with what they ordered and whether they paid.</p></div>'+
+      '<div><p class="label">Start a new season</p><div class="row"><input type="text" id="newSeason" placeholder="'+(newSeasonName())+'" aria-label="New season name"><button class="btn primary" id="addSeason">Start</button></div><p class="hint" style="margin-top:8px">Your houses carry over. Past seasons stay saved.</p></div>'+
+      (S.seasons.length>1?'<div><button class="btn danger small" id="delSeason">Delete the '+esc((seasonById(S.active)||{}).name||'')+' season</button></div>':'')+
+    '</div>',true);
+  sheet.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{S.active=b.getAttribute('data-edit');S.show=S.show.filter(x=>x!==S.active);saveS();renderTop();restyleAll();openSeasons();toast('Now editing '+seasonById(S.active).name)}));
+  sheet.querySelectorAll('[data-show]').forEach(c=>c.addEventListener('change',()=>{const id=c.getAttribute('data-show');S.show=S.show.filter(x=>x!==id);if(c.checked)S.show.push(id);saveS();renderTop();restyleAll();openSeasons()}));
+  sheet.querySelector('#csvBtn').addEventListener('click',()=>exportCSV(S.active));
+  sheet.querySelectorAll('[data-cb]').forEach(b=>b.addEventListener('click',()=>{closeSheet();goToHouse(b.getAttribute('data-cb'))}));
+  sheet.querySelector('#heatOn').addEventListener('change',e=>{S.heat.on=e.target.checked;saveS();renderTop();restyleAll();openSeasons()});
+  sheet.querySelector('#heatSt').addEventListener('change',e=>{S.heat.status=e.target.value;saveS();restyleAll();openSeasons()});
+  sheet.querySelector('#addSeason').addEventListener('click',()=>{
+    const v=(sheet.querySelector('#newSeason').value.trim()||newSeasonName());
+    if(S.seasons.some(s=>s.name.toLowerCase()===v.toLowerCase())){toast('You already have a season called '+v);return}
+    const id='s'+Date.now().toString(36);S.seasons.push({id,name:v,products:JSON.parse(JSON.stringify(prodsFor(S.active)))});
+    if(!S.show.includes(S.active))S.show.push(S.active);S.active=id;saveS();renderTop();restyleAll();openSeasons();toast(v+' started. Last season is still shown as dots.')});
+  const ds=sheet.querySelector('#delSeason');
+  if(ds)ds.addEventListener('click',async()=>{const se=seasonById(S.active);if(!await confirmBox('Delete the '+se.name+' season and every mark and note in it? This cannot be undone.','Delete season'))return;
+    delete S.marks[S.active];S.seasons=S.seasons.filter(s=>s.id!==S.active);S.show=S.show.filter(x=>x!==S.active);S.active=S.seasons[S.seasons.length-1].id;S.show=S.show.filter(x=>x!==S.active);saveS();renderTop();restyleAll();openSeasons()});
+}
+function newSeasonName(){const nums=S.seasons.map(s=>parseInt(s.name,10)).filter(n=>!isNaN(n));const n=nums.length?Math.max(...nums)+1:YR;return String(n)}
+
+/* settings sheet */
+function openSettings(){
+  sheetKind='settings';
+  const nh=Object.keys(H).length;
+  openSheet(
+    '<div class="sh-head"><div class="sh-title"><h2>Settings</h2><p>Your status buttons and backups.</p></div>'+X+'</div>'+
+    '<div class="sh-body">'+
+      '<div><p class="label">Status buttons</p><p class="hint" style="margin-bottom:8px">Left color is the box. Right color is the dot that shows this status from past seasons.</p><div class="list" id="stList">'+
+        S.statuses.map((s,i)=>'<div class="st-row" data-i="'+i+'"><input type="color" value="'+esc(s.color)+'" aria-label="Box color for '+esc(s.label)+'" title="Box color" data-color><input type="text" value="'+esc(s.label)+'" aria-label="Name" data-label><input type="color" value="'+esc(dotColor(s))+'" aria-label="Past season dot color for '+esc(s.label)+'" title="Dot color" data-dot>'+
+          '<button class="icon-btn" data-up aria-label="Move up"'+(i===0?' disabled style="opacity:.3"':'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg></button>'+
+          '<button class="icon-btn" data-del aria-label="Delete status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></div>').join('')+
+      '</div><div class="row" style="margin-top:8px"><button class="btn" id="addSt">Add a status</button></div></div>'+
+      '<div><p class="label">Products and prices for '+esc((seasonById(S.active)||{}).name||'')+'</p><div class="list" id="prodList">'+
+        prodsFor(S.active).map((p,i)=>'<div class="prod-row" data-i="'+i+'"><input type="text" class="pl" value="'+esc(p.label)+'" aria-label="Product name" data-pl><input type="text" class="pc" value="'+esc(pcode(p))+'" maxlength="4" aria-label="Short code for delivery labels" title="Short code" data-pcode autocapitalize="characters"><div class="pp"><b class="muted">$</b><input type="text" inputmode="decimal" value="'+p.price+'" aria-label="Price" data-pp></div><button class="icon-btn" data-pdel aria-label="Delete product"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></div>').join('')+
+      '</div><div class="row" style="margin-top:8px"><button class="btn" id="addProd">Add a product</button></div><p class="hint" style="margin-top:8px">Each season keeps its own prices. A new season starts with this list. The short code is what shows on the map in delivery mode.</p></div>'+
+      (!SYNC_ENABLED?'':'<div><p class="label">Account</p>'+(SY.on&&SY.user?'<p class="hint" style="margin-bottom:8px">Signed in as <b>'+esc(SY.user.email||'')+'</b>. Your map saves to your account and updates on every phone signed in to it.</p><button class="btn small" id="signOut">Sign out</button>':'<p class="hint" style="margin-bottom:8px">Not signed in. Your map is only on this phone.</p><button class="btn small primary" id="signIn">Sign in</button>')+'</div>')+
+      '<div><p class="label">Receipts</p><div style="display:flex;flex-direction:column;gap:8px">'+
+        '<label class="hint" for="rcSellers">Scouts selling (separate with commas)</label><input type="text" id="rcSellers" value="'+esc(sellers().join(', '))+'" style="width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px">'+
+        '<label class="hint" for="rcName">Pack name</label><input type="text" id="rcName" value="'+esc(S.packName||'Cub Scout Pack 601 of Woodbury')+'" style="width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px">'+
+        '<label class="hint" for="rcDel">Delivery note</label><textarea id="rcDel" style="min-height:130px">'+esc(S.rcDelivery||DEFAULT_DELIVERY_NOTE)+'</textarea></div></div>'+
+      '<div><p class="label">Backup</p><p class="hint" style="margin-bottom:8px">'+(SY.on?'Your account keeps your data safe. A backup file is an extra copy you can keep.':'Everything saves on this phone. Export a backup now and then, and to copy your map to another phone, export here and import there.')+'</p><div class="row" style="flex-wrap:wrap"><button class="btn primary" id="exp">Export backup</button><button class="btn" id="imp">Import backup</button></div></div>'+
+      '<p class="hint">Tap any house on the map to drop a box for it. House numbers are looked up from OpenStreetMap when you tap.</p>'+
+    '</div>',true);
+  const list=sheet.querySelector('#stList');
+  list.addEventListener('input',e=>{const row=e.target.closest('.st-row');if(!row)return;const s=S.statuses[+row.getAttribute('data-i')];
+    if(e.target.hasAttribute('data-color'))s.color=e.target.value;if(e.target.hasAttribute('data-dot'))s.dot=e.target.value;if(e.target.hasAttribute('data-label'))s.label=e.target.value||'Untitled';saveS();restyleAll()});
+  list.addEventListener('click',async e=>{const row=e.target.closest('.st-row');if(!row)return;const i=+row.getAttribute('data-i');
+    if(e.target.closest('[data-up]')&&i>0){const t=S.statuses[i-1];S.statuses[i-1]=S.statuses[i];S.statuses[i]=t;saveS();renderTally();openSettings()}
+    if(e.target.closest('[data-del]')){const s=S.statuses[i];let used=0;for(const sid in S.marks)for(const h in S.marks[sid])if(S.marks[sid][h].st===s.id)used++;
+      if(S.statuses.length<=1){toast('Keep at least one status');return}
+      if(!await confirmBox(used?'Delete "'+s.label+'"? '+used+' marked door'+(used===1?'':'s')+' will go back to unmarked. Notes stay.':'Delete "'+s.label+'"?','Delete'))return;
+      for(const sid in S.marks)for(const h in S.marks[sid])if(S.marks[sid][h].st===s.id)S.marks[sid][h].st=null;
+      S.statuses.splice(i,1);if(S.heat.status===s.id)S.heat.status=S.statuses[0].id;saveS();restyleAll();openSettings()}});
+  sheet.querySelector('#addSt').addEventListener('click',()=>{const pal=['#7048e8','#d6336c','#0ca678','#e8590c','#3bc9db','#495057'];S.statuses.push({id:'st'+Date.now().toString(36),label:'New status',color:pal[S.statuses.length%pal.length]});saveS();renderTally();openSettings();const ins=sheet.querySelectorAll('[data-label]');const last=ins[ins.length-1];last.focus();last.select()});
+  sheet.querySelector('#exp').addEventListener('click',exportBackup);
+  sheet.querySelector('#rcName').addEventListener('change',e=>{S.packName=e.target.value.trim();saveS();toast('Saved')});
+  sheet.querySelector('#rcSellers').addEventListener('change',e=>{S.sellers=e.target.value.split(',').map(x=>x.trim()).filter(Boolean);saveS();renderScoutSel();toast('Saved')});
+  sheet.querySelector('#rcDel').addEventListener('change',e=>{S.rcDelivery=e.target.value.trim();saveS();toast('Saved')});
+  const so=sheet.querySelector('#signOut');if(so)so.addEventListener('click',async()=>{if(!await confirmBox('Sign out on this phone? Your map stays saved in your account.','Sign out'))return;save('sdm.localOnly',false);await SY.auth.signOut();closeSheet()});
+  const si=sheet.querySelector('#signIn');if(si)si.addEventListener('click',()=>{if(!SY.auth){toast('Sign in needs a signal. Try again when you have service.');return}closeSheet();showLogin(true)});
+  const pl=sheet.querySelector('#prodList');
+  pl.addEventListener('change',e=>{const row=e.target.closest('.prod-row');if(!row)return;const p=prodsFor(S.active)[+row.getAttribute('data-i')];
+    if(e.target.hasAttribute('data-pl'))p.label=e.target.value.trim()||'Untitled';
+    if(e.target.hasAttribute('data-pcode')){p.code=e.target.value.trim().toUpperCase().slice(0,4)||undefined;e.target.value=pcode(p)}
+    if(e.target.hasAttribute('data-pp')){p.price=parseAmt(e.target.value);e.target.value=p.price;recomputeSales(S.active)}
+    saveS();restyleAll()});
+  pl.addEventListener('click',async e=>{const b=e.target.closest('[data-pdel]');if(!b)return;const i=+b.closest('.prod-row').getAttribute('data-i');const p=prodsFor(S.active)[i];
+    if(!await confirmBox('Remove "'+p.label+'" from this season? Any quantities entered for it stop counting.','Remove'))return;
+    prodsFor(S.active).splice(i,1);recomputeSales(S.active);saveS();restyleAll();openSettings()});
+  sheet.querySelector('#addProd').addEventListener('click',()=>{prodsFor(S.active).push({id:'p'+Date.now().toString(36),label:'New product',price:0});saveS();openSettings();const ins=sheet.querySelectorAll('[data-pl]');const last=ins[ins.length-1];last.focus();last.select()});
+  sheet.querySelector('#imp').addEventListener('click',()=>$('#importFile').click());
+  const clrH=sheet.querySelector('#clrH');if(clrH)clrH.addEventListener('click',async()=>{if(!await confirmBox('Reload house outlines from the map? Addresses and units you typed in yourself are kept.','Reload'))return;
+    const keep={};for(const id in H)if(H[id].e)keep[id]=H[id];H=keep;T=new Set();saveH();saveT();for(const id in polys){houseLayer.removeLayer(polys[id])}for(const k in polys)delete polys[k];drawHouses();drawLabels();wantTiles();openSettings()});
+}
+$('#importFile').addEventListener('change',async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{const d=JSON.parse(await f.text());if(!d||!d.state||!d.houses)throw new Error('bad');
+    if(!await confirmBox('Replace everything on this phone with the backup from '+(d.exported?d.exported.slice(0,10):'that file')+'?','Replace'))return;
+    S=Object.assign(defaults(),d.state);H=d.houses;saveS();saveH();
+    for(const id in polys)houseLayer.removeLayer(polys[id]);for(const k in polys)delete polys[k];for(const k in halos)removeHalo(k);for(const k in slices)removeSlices(k);
+    drawHouses();renderTop();restyleAll();openSettings();toast('Backup imported')}
+  catch(err){toast('That file is not a Door Map backup.')}
+});
+
+/* tabs */
+function setTabs(t){document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',String(b.getAttribute('data-tab')===t)))}
+function selectTab(t){
+  if(t==='map'){closeSheet();return}
+  if(selected){const s=selected;selected=null;if(H[s]&&H[s].temp)dropTemp(s);else restyle(s)}
+  setTabs(t);if(t==='seasons')openSeasons();if(t==='settings')openSettings();
+}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{const t=b.getAttribute('data-tab');if(sheetKind===t){closeSheet()}else selectTab(t)}));
+
+/* add house mode */
+let addMode=false;
+$('#fabAdd').addEventListener('click',()=>{
+  addMode=!addMode;$('#fabAdd').classList.toggle('on',addMode);
+  if(addMode){closeSheet();if(map.getZoom()<17)map.setZoom(18);setBanner('Tap the map where the missing house is.')}else setBanner(null);
+});
+map.on('click',e=>{
+  if(!$('#searchRes').hidden){hideSearch();return}
+  if(moveId){moveTo(moveId,e.latlng);if(moveHandle)moveHandle.setLatLng(e.latlng);saveH();return}
+  if(!addMode&&sheetKind){closeSheet();return}
+  if(S.deliver&&!addMode)return; // first tap just closes an open panel
+  if(!addMode&&map.getZoom()<17){toast('Zoom in closer, then tap a house.');return}
+  const wasAdd=addMode;
+  const c=[r6(e.latlng.lat),r6(e.latlng.lng)];const id='c'+Date.now().toString(36);
+  H[id]={c,p:square(c,7),n:'',s:'',e:1,custom:1,temp:1};
+  if(wasAdd){delete H[id].temp;saveH();addMode=false;$('#fabAdd').classList.remove('on');setBanner(null)}
+  ensurePoly(id);selected=id;restyle(id);openHouse(id,wasAdd);
+  lookupAddress(c).then(a=>{
+    if(!a||!H[id]||H[id].n||H[id].s)return;
+    H[id].n=a.n;H[id].s=a.s;if(a.n&&H[id].temp)delete H[id].temp; // a box with a found address is a real house, keep it
+    if(!H[id].temp)saveH();drawLabels();
+    if(selected===id&&sheetKind==='house'){
+      const h2=sheet.querySelector('.sh-title h2');if(h2&&a.n)h2.textContent=addrOf(H[id]);
+      const ni=sheet.querySelector('#numIn'),si=sheet.querySelector('#strIn');
+      if(ni&&!ni.value)ni.value=a.n;if(si&&!si.value)si.value=a.s;
+    }
+  });
+});
+
+/* address search: your boxes first, then the map */
+function goToHouse(hid){const h=H[hid];if(!h)return;hideSearch();$('#searchIn').value='';$('#searchClr').hidden=true;map.setView(h.c,Math.max(map.getZoom(),19));setTimeout(()=>onHouseTap(hid),350)}
+function hideSearch(){$('#searchRes').hidden=true;$('#searchIn').blur()}
+function searchLocal(q){q=q.toLowerCase().replace(/\s+/g,' ').trim();if(!q)return[];const out=[];
+  for(const hid in H){const h=H[hid];if(h.x||h.temp)continue;const a=(addrOf(h)||'').toLowerCase();
+    let hit=a&&(a.startsWith(q)||a.includes(' '+q)||a.includes(q));let unit=null;
+    if(!hit&&h.u){unit=h.u.find(u=>u.toLowerCase().includes(q));hit=!!unit}
+    if(hit)out.push({hid,label:(addrOf(h)||'House')+(unit?' (unit '+unit+')':''),key:unit?hid+'|'+unit:hid,starts:a.startsWith(q)||(unit&&unit.toLowerCase().startsWith(q))})}
+  out.sort((x,y)=>(y.starts-x.starts)||x.label.localeCompare(y.label,undefined,{numeric:true}));return out.slice(0,8)}
+let searchT=null;
+function renderSearch(){const q=$('#searchIn').value;const r=$('#searchRes');$('#searchClr').hidden=!q;
+  if(!q.trim()){r.hidden=true;return}
+  const loc=searchLocal(q);
+  r.innerHTML=loc.map(x=>{const m=mark(S.active,x.key),st=m&&statusById(m.st);return '<button type="button" data-hid="'+esc(x.hid)+'"><i style="background:'+(st?st.color:'transparent')+'"></i>'+esc(x.label)+'<small>'+(st?esc(st.label):'Not marked')+'</small></button>'}).join('')+
+    '<button type="button" id="searchMap"><i style="background:transparent;border:0"></i>Find \u201c'+esc(q.trim())+'\u201d on the map<small>needs signal</small></button>';
+  r.hidden=false;
+  r.querySelectorAll('[data-hid]').forEach(b=>b.addEventListener('click',()=>goToHouse(b.getAttribute('data-hid'))));
+  r.querySelector('#searchMap').addEventListener('click',()=>searchMap(q.trim()));
+}
+async function searchMap(q){
+  const c=map.getCenter();const vb=[c.lng-0.15,c.lat+0.1,c.lng+0.15,c.lat-0.1].join(',');
+  try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&viewbox='+vb+'&q='+encodeURIComponent(q+(/woodbury|mn|minnesota/i.test(q)?'':', Woodbury, MN')),{headers:{'Accept':'application/json'}});
+    const j=await r.json();if(!j.length){toast('Could not find that address.');return}
+    hideSearch();map.setView([+j[0].lat,+j[0].lon],19);toast('Tap the house to mark it')}
+  catch(e){toast('Map search needs a signal. Your own boxes can still be searched.')}
+}
+$('#searchIn').addEventListener('input',()=>{clearTimeout(searchT);searchT=setTimeout(renderSearch,120)});
+$('#searchIn').addEventListener('focus',renderSearch);
+$('#searchIn').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const loc=searchLocal($('#searchIn').value);if(loc.length===1)goToHouse(loc[0].hid);else if(!loc.length&&$('#searchIn').value.trim())searchMap($('#searchIn').value.trim())}if(e.key==='Escape')hideSearch()});
+$('#searchClr').addEventListener('click',()=>{$('#searchIn').value='';renderSearch();$('#searchIn').focus()});
+map.on('movestart',()=>{$('#searchRes').hidden=true});
+/* delivery mode toggle */
+function setDeliver(on){S.deliver=on;saveS();$('#fabDeliver').classList.toggle('on',on);if(sheetKind==='house')closeSheet();restyleAll();
+  toast(on?'Delivery mode: yellow houses still need their order. Tap one to see it.':'Delivery mode off')}
+$('#fabDeliver').addEventListener('click',()=>setDeliver(!S.deliver));
+$('#fabDeliver').classList.toggle('on',!!S.deliver);
+/* base toggle */
+$('#fabBase').addEventListener('click',()=>{S.base=S.base==='street'?'satellite':'street';saveS();setBase()});
+
+/* locate */
+let watchId=null,meDot=null,meRing=null,firstFix=false;
+$('#fabLocate').addEventListener('click',()=>{
+  if(!('geolocation' in navigator)){toast('This browser cannot share your location.');return}
+  if(watchId!==null){if(meDot)map.flyTo(meDot.getLatLng(),Math.max(map.getZoom(),18));return}
+  firstFix=false;$('#fabLocate').classList.add('on');
+  watchId=navigator.geolocation.watchPosition(p=>{
+    const ll=[p.coords.latitude,p.coords.longitude];
+    if(!meDot){meRing=L.circle(ll,{radius:p.coords.accuracy,color:'#1c7ed6',weight:1,fillOpacity:.1,interactive:false,renderer}).addTo(map);meDot=L.circleMarker(ll,{radius:7,color:'#fff',weight:3,fillColor:'#1c7ed6',fillOpacity:1,interactive:false,renderer}).addTo(map)}
+    else{meDot.setLatLng(ll);meRing.setLatLng(ll).setRadius(p.coords.accuracy)}
+    if(!firstFix){firstFix=true;map.flyTo(ll,18)}
+  },err=>{toast(err.code===1?'Location is turned off for this site. Allow it in your browser settings.':'Could not find your location.');$('#fabLocate').classList.remove('on');if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=null},{enableHighAccuracy:true,maximumAge:5000});
+});
+
+/* map events */
+let moveT;
+map.on('moveend zoomend',()=>{
+  clearTimeout(moveT);moveT=setTimeout(()=>{
+    const c=map.getCenter();S.view={c:[r6(c.lat),r6(c.lng)],z:map.getZoom()};saveS();
+    drawHouses();drawLabels();wantTiles();
+  },200);
+});
+
+$('#banner').addEventListener('click',()=>{if(moveId){endMove();return}const b=$('#banner');b.hidden=true;b.innerHTML='';if(addMode){addMode=false;$('#fabAdd').classList.remove('on')}});
+/* save safety */
+let storageOK=true;
+try{localStorage.setItem('sdm.probe','1');storageOK=localStorage.getItem('sdm.probe')==='1';localStorage.removeItem('sdm.probe')}catch(e){storageOK=false}
+const isWebsite=location.protocol==='https:'||location.protocol==='http:';
+if(isWebsite&&navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+function hasData(){for(const sid in S.marks)if(Object.keys(S.marks[sid]).length)return true;return false}
+function renderSafe(){
+  const el=$('#safe');let msg=null;
+  if(SY.on){el.classList.add('sync');
+    if(!navigator.onLine){el.innerHTML='<span>No signal. Changes are kept on this phone and sync when you are back online.</span>';el.hidden=false}else el.hidden=true;
+    setTimeout(()=>map.invalidateSize(),0);return}
+  el.classList.remove('sync');
+  if(!storageOK)msg='This copy cannot save anything. Export a backup before you close it.';
+  else if(!isWebsite&&hasData()&&(S.dirty||0)>0)msg='Opened from a downloaded file, saving is not reliable. Back up often.';
+  else if((S.dirty||0)>=10)msg=S.dirty+' changes since your last backup.';
+  if(!msg){el.hidden=true;return}
+  el.innerHTML='<span>'+esc(msg)+'</span><button type="button" id="safeBtn">Back up now</button>';el.hidden=false;
+  el.querySelector('#safeBtn').addEventListener('click',exportBackup);
+  setTimeout(()=>map.invalidateSize(),0);
+}
+window.addEventListener('beforeunload',e=>{if(!SY.on&&hasData()&&((S.dirty||0)>0||!storageOK)){e.preventDefault();e.returnValue=''}});
+
+/* ---------- account and live sync (Firebase) ---------- */
+const FB_CONFIG={apiKey:"AIzaSyDcR5UXs7nsVdIX7o4CBinruNualDsEre8",authDomain:"cub-scouts-sales.firebaseapp.com",projectId:"cub-scouts-sales",storageBucket:"cub-scouts-sales.firebasestorage.app",messagingSenderId:"867924389405",appId:"1:867924389405:web:f47a3bd64e802c32ea20f4"};
+const NB=16; // data is spread over a few documents so each phone loads in a handful of reads
+function bucket(k){let h=0;for(let i=0;i<k.length;i++)h=(h*31+k.charCodeAt(i))|0;return Math.abs(h)%NB}
+const docH=k=>'h'+bucket(k), docM=(sid,k)=>'m_'+sid+'_'+bucket(k);
+function sharedConfig(){return JSON.stringify({statuses:S.statuses,seasons:S.seasons})}
+function schedulePush(){if(!SY.ready)return;clearTimeout(SY.pushT);SY.pushT=setTimeout(pushChanges,250)}
+function pushChanges(){
+  if(!SY.ready)return;
+  const writes={};const put=(doc,k,v)=>{(writes[doc]=writes[doc]||{})[k]=v};const del=firebase.firestore.FieldValue.delete();
+  const seen=new Set();
+  for(const hid in H){if(H[hid].temp)continue;const j=JSON.stringify(H[hid]),lk='H:'+hid;seen.add(lk);if(SY.last[lk]!==j){put(docH(hid),hid,j);SY.last[lk]=j}}
+  for(const sid in S.marks){const m=S.marks[sid];for(const k in m){const j=JSON.stringify(m[k]),lk='M:'+sid+':'+k;seen.add(lk);if(SY.last[lk]!==j){put(docM(sid,k),k,j);SY.last[lk]=j}}}
+  for(const lk in SY.last){if(lk==='C'||seen.has(lk))continue;
+    if(lk.startsWith('H:')){const hid=lk.slice(2);put(docH(hid),hid,del)}
+    else{const r=lk.slice(2),i=r.indexOf(':'),sid=r.slice(0,i),k=r.slice(i+1);put(docM(sid,k),k,del)}
+    delete SY.last[lk]}
+  const c=sharedConfig();let cfg=null;if(SY.last.C!==c){cfg=c;SY.last.C=c}
+  const ids=Object.keys(writes);if(!ids.length&&!cfg)return;
+  const col=SY.db.collection('data');let batch=SY.db.batch(),n=0;
+  const flush=()=>{const b=batch;batch=SY.db.batch();n=0;b.commit().catch(err=>{console.warn(err);syncError(err)})};
+  for(const id of ids){batch.set(col.doc(id),{m:writes[id]},{merge:true});if(++n>=400)flush()}
+  if(cfg)batch.set(col.doc('config'),{c:cfg,t:Date.now()});
+  flush();
+}
+function syncError(err){if(err&&err.code==='permission-denied')toast('Your account is not allowed to save here. Check the email you signed in with.')}
+function rerenderAll(){
+  for(const id in polys){removeHalo(id);houseLayer.removeLayer(polys[id]);delete polys[id]}
+  for(const k in slices)removeSlices(k);
+  drawHouses();renderTop();restyleAll();renderSafe();
+}
+function applyConfig(c){try{const o=JSON.parse(c);if(o.statuses&&o.statuses.length)S.statuses=o.statuses;if(o.seasons&&o.seasons.length)S.seasons=o.seasons}catch(e){}
+  if(!S.seasons.some(x=>x.id===S.active))S.active=S.seasons[S.seasons.length-1].id;S.show=S.show.filter(id=>S.seasons.some(x=>x.id===id));S.seasons.forEach(se=>prodsFor(se.id))}
+// apply what the other phone changed; skip anything this phone changed and has not sent yet
+function applyRemoteDoc(id,data){
+  const changedH=new Set();let marksChanged=false,cfgChanged=false;
+  if(id==='config'){if(data&&data.c&&data.c!==SY.last.C&&sharedConfig()===SY.last.C){applyConfig(data.c);SY.last.C=sharedConfig();cfgChanged=true}return{changedH,marksChanged,cfgChanged}}
+  const m=(data&&data.m)||{};
+  if(id[0]==='h'){
+    const b=+id.slice(1);
+    for(const hid in m){const lk='H:'+hid,j=m[hid];if(j===SY.last[lk])continue;const local=H[hid]&&!H[hid].temp?JSON.stringify(H[hid]):undefined;if(local!==SY.last[lk])continue;
+      try{H[hid]=JSON.parse(j);SY.last[lk]=j;changedH.add(hid)}catch(e){}}
+    for(const lk in SY.last){if(!lk.startsWith('H:'))continue;const hid=lk.slice(2);if(bucket(hid)!==b||hid in m)continue;
+      if(H[hid]&&JSON.stringify(H[hid])===SY.last[lk]){delete H[hid];delete SY.last[lk];changedH.add(hid)}}
+  }else if(id.startsWith('m_')){
+    const r=id.slice(2),i=r.lastIndexOf('_'),sid=r.slice(0,i),b=+r.slice(i+1);
+    if(!S.marks[sid])S.marks[sid]={};const sm=S.marks[sid];
+    for(const k in m){const lk='M:'+sid+':'+k,j=m[k];if(j===SY.last[lk])continue;const local=sm[k]?JSON.stringify(sm[k]):undefined;if(local!==SY.last[lk])continue;
+      try{sm[k]=JSON.parse(j);SY.last[lk]=j;marksChanged=true;changedH.add(k.split('|')[0])}catch(e){}}
+    const pre='M:'+sid+':';
+    for(const lk in SY.last){if(!lk.startsWith(pre))continue;const k=lk.slice(pre.length);if(bucket(k)!==b||k in m)continue;
+      if(sm[k]&&JSON.stringify(sm[k])===SY.last[lk]){delete sm[k];delete SY.last[lk];marksChanged=true;changedH.add(k.split('|')[0])}}
+  }
+  return{changedH,marksChanged,cfgChanged};
+}
+let remoteT=null;const remotePending=new Set();let remoteCfg=false;
+function queueRemoteRender(res){res.changedH.forEach(h=>remotePending.add(h));if(res.cfgChanged)remoteCfg=true;
+  clearTimeout(remoteT);remoteT=setTimeout(()=>{
+    save(KS,S);const out={};for(const id in H)if(!H[id].temp)out[id]=H[id];save(KH,out);
+    if(remoteCfg){remoteCfg=false;remotePending.clear();rerenderAll();return}
+    for(const hid of remotePending){if(H[hid]){if(polys[hid])redrawHouse(hid);else drawHouses()}else{removeHalo(hid);if(polys[hid]){houseLayer.removeLayer(polys[hid]);delete polys[hid]}}}
+    remotePending.clear();renderTally();drawLabels();
+  },150);
+}
+async function startSync(user){
+  SY.user=user;SY.ready=false;
+  setBanner('Loading your map...',true);
+  let snap;
+  try{snap=await SY.db.collection('data').get()}
+  catch(err){setBanner(null);toast(err&&err.code==='permission-denied'?'This account cannot open the map. Check the email you signed in with.':'Could not reach your account. Working on this phone for now.');return}
+  const rH={},rM={};let rC=null;
+  snap.forEach(d=>{const id=d.id,data=d.data();
+    if(id==='config'){rC=data.c||null;return}
+    const m=data.m||{};
+    if(id[0]==='h'){for(const k in m)rH[k]=m[k]}
+    else if(id.startsWith('m_')){const r=id.slice(2),sid=r.slice(0,r.lastIndexOf('_'));(rM[sid]=rM[sid]||{});for(const k in m)rM[sid][k]=m[k]}});
+  const firstOnThisPhone=load('sdm.synced',null)!==FB_CONFIG.projectId+':'+user.uid;
+  const last={};
+  // houses: the account's copy wins; on a phone's first sign in, its extra houses are added
+  const newH={};for(const k in rH){try{newH[k]=JSON.parse(rH[k]);last['H:'+k]=rH[k]}catch(e){}}
+  if(firstOnThisPhone)for(const k in H)if(!(k in newH)&&!H[k].temp)newH[k]=H[k];
+  const newM={};for(const sid in rM){newM[sid]={};for(const k in rM[sid]){try{newM[sid][k]=JSON.parse(rM[sid][k]);last['M:'+sid+':'+k]=rM[sid][k]}catch(e){}}}
+  if(firstOnThisPhone)for(const sid in S.marks){newM[sid]=newM[sid]||{};for(const k in S.marks[sid])if(!(k in newM[sid]))newM[sid][k]=S.marks[sid][k]}
+  if(rC){const localSeasons=S.seasons,localStatuses=S.statuses;applyConfig(rC);last.C=rC;
+    if(firstOnThisPhone){for(const se of localSeasons)if(!S.seasons.some(x=>x.id===se.id))S.seasons.push(se);for(const st of localStatuses)if(!S.statuses.some(x=>x.id===st.id))S.statuses.push(st)}}
+  H=newH;S.marks=newM;
+  SY.last=last;SY.ready=true;SY.on=true;
+  save('sdm.synced',FB_CONFIG.projectId+':'+user.uid);
+  save(KS,S);{const out={};for(const id in H)if(!H[id].temp)out[id]=H[id];save(KH,out)}
+  pushChanges(); // sends anything this phone had that the account did not
+  setBanner(null);rerenderAll();
+  if(SY.unsub)SY.unsub();
+  SY.unsub=SY.db.collection('data').onSnapshot({includeMetadataChanges:false},qs=>{
+    qs.docChanges().forEach(ch=>{const res=applyRemoteDoc(ch.doc.id,ch.type==='removed'?{}:ch.doc.data());if(res.changedH.size||res.cfgChanged||res.marksChanged)queueRemoteRender(res)})
+  },err=>{console.warn(err);syncError(err)});
+  toast(firstOnThisPhone&&Object.keys(rH).length===0?'Your map is now saved to your account':'Signed in. Your map is up to date.');
+}
+function showLogin(show){$('#login').hidden=!show}
+const SYNC_ENABLED=true;
+const FB_SDK=['app','auth','firestore'].map(n=>'https://www.gstatic.com/firebasejs/10.14.1/firebase-'+n+'-compat.js');
+function loadScript(src){return new Promise((res,rej)=>{const el=document.createElement('script');el.src=src;el.onload=res;el.onerror=rej;document.head.appendChild(el)})}
+async function initSync(){
+  $('#login').hidden=true;
+  // sign in only runs on the real website; a downloaded copy keeps working on this phone alone
+  if(!SYNC_ENABLED||!isWebsite){SY.localOnly=true;return}
+  try{for(const src of FB_SDK)await loadScript(src)}catch(e){SY.localOnly=true;renderSafe();return} // no signal: keep working on this phone
+  if(typeof firebase==='undefined'||!firebase.initializeApp){SY.localOnly=true;renderSafe();return} // no signal on first open: work on this phone
+  try{firebase.initializeApp(FB_CONFIG)}catch(e){}
+  SY.auth=firebase.auth();SY.db=firebase.firestore();
+  try{SY.db.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}
+  SY.auth.onAuthStateChanged(user=>{
+    if(user){showLogin(false);startSync(user)}
+    else{SY.on=false;SY.ready=false;if(SY.unsub){SY.unsub();SY.unsub=null}if(!load('sdm.localOnly',false))showLogin(true);renderSafe()}
+  });
+  $('#loginForm').addEventListener('submit',async e=>{e.preventDefault();
+    const em=$('#lgEmail').value.trim(),pw=$('#lgPass').value,er=$('#lgErr');er.hidden=true;
+    if(!em||!pw){er.textContent='Enter your email and password.';er.hidden=false;return}
+    $('#lgBtn').disabled=true;$('#lgBtn').textContent='Signing in...';
+    try{await SY.auth.signInWithEmailAndPassword(em,pw);save('sdm.localOnly',false)}
+    catch(err){const c=err&&err.code||'';er.textContent=c.includes('network')?'Could not reach your account. Check your signal, or open the app from its web address instead of a downloaded file.':(c.includes('too-many')?'Too many tries. Wait a few minutes and try again.':(/wrong-password|user-not-found|invalid-credential|invalid-login|invalid-email/.test(c)?'That email and password do not match.':'Sign in failed ('+(c||(err&&err.message)||'unknown')+'). Send this message to Claude.'));er.hidden=false}
+    $('#lgBtn').disabled=false;$('#lgBtn').textContent='Sign in';
+  });
+  $('#lgSkip').addEventListener('click',()=>{save('sdm.localOnly',true);showLogin(false);toast('Working on this phone only. Sign in anytime from Settings.')});
+}
+window.addEventListener('online',()=>{SY.online=true;renderSafe();if(SY.user&&!SY.ready)startSync(SY.user)});
+window.addEventListener('offline',()=>{SY.online=false;renderSafe()});
+
+/* boot */
+for(const id in H)if(H[id].temp)delete H[id];
+{let ch=false;for(const id in H){const h=H[id];if(h.custom&&hasUnits(h)&&h.u.length>1&&!h.wd){setBoxGeom(h);h.wd=1;ch=true}}if(ch)saveH()} // widen unit boxes placed before sections existed
+renderTop();drawHouses();drawLabels();wantTiles();renderSafe();initSync();
+if(isWebsite&&'serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+if(!Object.keys(H).length){setBanner('Zoom in on your street and tap a house to mark it.');setTimeout(()=>setBanner(null),6000)}
+})();
+</script>
+</body>
+</html>
