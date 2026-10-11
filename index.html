@@ -118,6 +118,10 @@ button{cursor:pointer}
 .sres button:first-child{border-top:0}
 .sres i{width:12px;height:12px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.2)}
 .sres small{color:var(--muted);margin-left:auto;font-size:12px;white-space:nowrap}
+.knockrow{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:8px 10px 8px 12px}
+.knockrow span{flex:1;font-weight:600}
+.knockrow button{width:44px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:20px;font-weight:700}
+.chip .kc{margin-left:auto;font-size:12px;font-weight:700;background:var(--ink);color:var(--bg);border-radius:999px;padding:2px 7px}
 .backbox{border:2px solid #f59f00;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
 .backbox input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;font-size:16px}
 .rcpt{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
@@ -482,6 +486,7 @@ function copyText(t){const ok=()=>toast('Receipt copied');
   if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t).then(ok,()=>fallback());else fallback();
   function fallback(){const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');ok()}catch(e){toast('Could not copy on this phone')}ta.remove()}}
 function pastPhone(key){const order=S.seasons.slice().reverse();for(const se of order){if(se.id===S.active)continue;const m=(S.marks[se.id]||{})[key];if(m&&m.phone)return{phone:m.phone,season:se.name}}return null}
+function knockText(n){return 'Knocked '+n+' time'+(n===1?'':'s')+', nobody home'}
 function heatOn(){return S.heat.on && shown().length>1 && statusById(S.heat.status)}
 
 /* ---------- map ---------- */
@@ -620,6 +625,7 @@ function drawLabels(){
       if(!heat&&others.length&&others.some(sid=>mark(sid,id)))html+=dotsHtml(id,others)} // marked as one house before it was split
     else if(heat){const n=heatCount(id);if(n)html+='<span class="heatn">'+n+' of '+ids.length+'</span>'}
     else if(others.length)html+=dotsHtml(id,others);
+    {const mm=mark(S.active,id);if(!hasUnits(h)&&mm&&mm.st==='nothome'&&mm.knocks>1)html+='<span class="heatn">\u00d7'+mm.knocks+' knocks</span>'}
     {const mm=mark(S.active,id);if(!hasUnits(h)&&mm&&mm.st==='comeback'&&mm.back)html+='<span class="heatn" style="background:#f59f00;color:#2a1f00">'+esc(fmtBack(mm.back))+'</span>'}
     html+='</div>';
     if(hasUnits(h)&&map.getZoom()>=19){const rs=sliceRects(h),sh=unitShort(h);rs.forEach((r,i)=>{
@@ -912,8 +918,9 @@ function openRecord(key,hid,unit,editNumber){
       '<div class="soldby"><label for="soldBy" class="muted" style="flex:none;font-weight:600">Sold by</label><select id="soldBy"><option value="">Not set</option>'+sellers().map(n=>'<option'+((m.seller||'')===n?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select></div>'+
       (()=>{const b=bigBuyer(key);return b?'<p class="big" id="bigLine"><span>\u2605</span>Big buyer: '+money(b.amt)+' '+b.kind+' in '+esc(b.season)+'</p>':'<p class="big" id="bigLine" hidden></p>'})()+
       '<div><p class="label">What happened</p><div class="chips" id="chips">'+
-        S.statuses.map(s=>'<button class="chip" data-st="'+esc(s.id)+'" aria-pressed="'+(m.st===s.id)+'"><i style="background:'+s.color+'"></i>'+esc(s.label)+'</button>').join('')+
+        S.statuses.map(s=>'<button class="chip" data-st="'+esc(s.id)+'" aria-pressed="'+(m.st===s.id)+'"><i style="background:'+s.color+'"></i>'+esc(s.label)+(s.id==='nothome'&&m.knocks>1?'<span class="kc" id="kcChip">\u00d7'+m.knocks+'</span>':'')+'</button>').join('')+
       '</div></div>'+
+      '<div class="knockrow" id="knockRow"'+(m.st==='nothome'?'':' hidden')+'><span id="knockTxt">'+knockText(m.knocks||1)+'</span><button type="button" id="knockMinus" aria-label="One less knock">\u2212</button><button type="button" id="knockPlus" aria-label="Knocked again">+</button></div>'+
       '<div class="backbox" id="backBox"'+(m.st==='comeback'?'':' hidden')+'><label for="backAt"><b>Come back when?</b></label><input type="datetime-local" id="backAt" value="'+esc(m.back||'')+'"><span class="hint" id="backShow">'+(m.back?esc(fmtBack(m.back)):'Pick a day and time.')+'</span></div>'+
       '<div><p class="label">Order for '+esc(se?se.name:'')+'</p><div class="items" id="items">'+
         prodsFor(S.active).map(p=>{const q=(m.items&&+m.items[p.id])||0;return '<div class="item'+(q?' has':'')+'"><div class="it-name">'+esc(p.label)+'<small>'+money(p.price)+'</small></div><div class="step"><button type="button" data-dec="'+esc(p.id)+'" aria-label="One less '+esc(p.label)+'">\u2212</button><input type="text" inputmode="numeric" data-qty="'+esc(p.id)+'" aria-label="'+esc(p.label)+' quantity" placeholder="0" value="'+(q||'')+'"><button type="button" data-inc="'+esc(p.id)+'" aria-label="One more '+esc(p.label)+'">+</button></div></div>'}).join('')+
@@ -932,12 +939,17 @@ function openRecord(key,hid,unit,editNumber){
   sheet.querySelector('#chips').addEventListener('click',e=>{
     const b=e.target.closest('.chip');if(!b)return;const st=b.getAttribute('data-st');
     const cur=mark(S.active,key)||{};const next=cur.st===st?null:st;
-    setMark(key,hid,{st:next});
+    {const cur2=mark(S.active,key)||{};setMark(key,hid,next==='nothome'&&!cur2.knocks?{st:next,knocks:1}:{st:next})}
+    {const kr=sheet.querySelector('#knockRow');if(kr){kr.hidden=next!=='nothome';sheet.querySelector('#knockTxt').textContent=knockText((mark(S.active,key)||{}).knocks||1)}}
     {const sv=(mark(S.active,key)||{}).seller;const sbx=sheet.querySelector('#soldBy');if(sbx&&sv)sbx.value=sv}
     sheet.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(c.getAttribute('data-st')===next)));
     const bb=sheet.querySelector('#backBox');if(bb){bb.hidden=next!=='comeback';
       if(next==='comeback'){const bi=sheet.querySelector('#backAt');bb.scrollIntoView({block:'nearest'});try{bi.focus();bi.showPicker&&bi.showPicker()}catch(err){}}}
   });
+  const bumpKnock=d=>{const n=Math.max(1,((mark(S.active,key)||{}).knocks||1)+d);setMark(key,hid,{knocks:n});sheet.querySelector('#knockTxt').textContent=knockText(n);
+    const ch=sheet.querySelector('[data-st="nothome"]');if(ch){let kc=ch.querySelector('.kc');if(n>1){if(!kc){kc=document.createElement('span');kc.className='kc';ch.appendChild(kc)}kc.textContent='\u00d7'+n}else if(kc)kc.remove()}};
+  const kp=sheet.querySelector('#knockPlus');if(kp)kp.addEventListener('click',()=>{bumpKnock(1);toast('Knock '+((mark(S.active,key)||{}).knocks)+' logged')});
+  const km=sheet.querySelector('#knockMinus');if(km)km.addEventListener('click',()=>bumpKnock(-1));
   const bi=sheet.querySelector('#backAt');if(bi)bi.addEventListener('change',()=>{setMark(key,hid,{back:bi.value});sheet.querySelector('#backShow').textContent=bi.value?fmtBack(bi.value):'Pick a day and time.'});
   const rcp=sheet.querySelector('#rcPhone');if(rcp)rcp.addEventListener('change',()=>setMark(key,hid,{phone:rcp.value.trim()}));
   let seller=(mark(S.active,key)||{}).seller||'';
