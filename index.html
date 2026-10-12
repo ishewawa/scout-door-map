@@ -360,7 +360,8 @@ function defaults(){return{
 let S=Object.assign(defaults(),load(KS,{}));
 let H=load(KH,{});
 let T=new Set(load(KT,[]));
-var SY={on:false,ready:false,db:null,auth:null,last:{},pushT:null,localOnly:false,user:null,online:navigator.onLine};
+var SY={on:false,ready:false,db:null,auth:null,last:{},pushT:null,localOnly:false,user:null,online:navigator.onLine,unsent:{},err:null,okAt:0};
+try{const u=JSON.parse(localStorage.getItem('sdm.unsent')||'{}');if(u&&typeof u==='object')SY.unsent=u}catch(e){}
 function saveS(){const r=save(KS,S);schedulePush();return r}
 const saveT=()=>save(KT,[...T]);
 // each season keeps its own product list and prices
@@ -1108,7 +1109,7 @@ function openSettings(){
       '<div><p class="label">Products and prices for '+esc((seasonById(S.active)||{}).name||'')+'</p><div class="list" id="prodList">'+
         prodsFor(S.active).map((p,i)=>'<div class="prod-row" data-i="'+i+'"><input type="text" class="pl" value="'+esc(p.label)+'" aria-label="Product name" data-pl><input type="text" class="pc" value="'+esc(pcode(p))+'" maxlength="4" aria-label="Short code for delivery labels" title="Short code" data-pcode autocapitalize="characters"><div class="pp"><b class="muted">$</b><input type="text" inputmode="decimal" value="'+p.price+'" aria-label="Price" data-pp></div><button class="icon-btn" data-pdel aria-label="Delete product"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></div>').join('')+
       '</div><div class="row" style="margin-top:8px"><button class="btn" id="addProd">Add a product</button></div><p class="hint" style="margin-top:8px">Each season keeps its own prices. A new season starts with this list. The short code is what shows on the map in delivery mode.</p></div>'+
-      (!SYNC_ENABLED?'':'<div><p class="label">Account</p>'+(SY.on&&SY.user?'<p class="hint" style="margin-bottom:8px">Signed in as <b>'+esc(SY.user.email||'')+'</b>. Your map saves to your account and updates on every phone signed in to it.</p><button class="btn small" id="signOut">Sign out</button>':'<p class="hint" style="margin-bottom:8px">Not signed in. Your map is only on this phone.</p><button class="btn small primary" id="signIn">Sign in</button>')+'</div>')+
+      (!SYNC_ENABLED?'':'<div><p class="label">Account</p>'+(SY.on&&SY.user?'<p class="hint" style="margin-bottom:8px">Signed in as <b>'+esc(SY.user.email||'')+'</b>. Your map saves to your account and updates on every phone signed in to it.</p>'+syncLine()+'<button class="btn small" id="signOut">Sign out</button>':'<p class="hint" style="margin-bottom:8px">Not signed in. Your map is only on this phone.</p><button class="btn small primary" id="signIn">Sign in</button>')+'</div>')+
       '<div><p class="label">Receipts</p><div style="display:flex;flex-direction:column;gap:8px">'+
         '<label class="hint" for="rcSellers">Scouts selling (separate with commas)</label><input type="text" id="rcSellers" value="'+esc(sellers().join(', '))+'" style="width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px">'+
         '<label class="hint" for="rcName">Pack name</label><input type="text" id="rcName" value="'+esc(S.packName||'Cub Scout Pack 601 of Woodbury')+'" style="width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px">'+
@@ -1267,8 +1268,12 @@ function hasData(){for(const sid in S.marks)if(Object.keys(S.marks[sid]).length)
 function renderSafe(){
   const el=$('#safe');let msg=null;
   if(SY.on){el.classList.add('sync');
-    if(!navigator.onLine){el.innerHTML='<span>No signal. Changes are kept on this phone and sync when you are back online.</span>';el.hidden=false}else el.hidden=true;
-    setTimeout(()=>map.invalidateSize(),0);return}
+    const n=unsentCount(),old=Object.values(SY.unsent).some(t=>Date.now()-t>8000),wasHidden=el.hidden;
+    if(!navigator.onLine){el.innerHTML='<span>No signal. '+(n?n+' changes are':'Changes are')+' kept on this phone and sync when you are back online.</span>';el.hidden=false}
+    else if(n&&(SY.err||old)){el.innerHTML='<span>'+n+(n===1?' change has':' changes have')+' not reached your account yet'+(SY.err?' ('+esc(SY.err)+')':'')+'. They are safe on this phone.</span><button type="button" id="sendNow">Send now</button>';el.hidden=false;
+      el.querySelector('#sendNow').addEventListener('click',()=>{resendAll();toast('Sending...')})}
+    else el.hidden=true;
+    if(wasHidden!==el.hidden)setTimeout(()=>map.invalidateSize(),0);return}
   el.classList.remove('sync');
   if(!storageOK)msg='This copy cannot save anything. Export a backup before you close it.';
   else if(!isWebsite&&hasData()&&(S.dirty||0)>0)msg='Opened from a downloaded file, saving is not reliable. Back up often.';
@@ -1299,12 +1304,38 @@ function pushChanges(){
     delete SY.last[lk]}
   const c=sharedConfig();let cfg=null;if(SY.last.C!==c){cfg=c;SY.last.C=c}
   const ids=Object.keys(writes);if(!ids.length&&!cfg)return;
-  const col=SY.db.collection('data');let batch=SY.db.batch(),n=0;
-  const flush=()=>{const b=batch;batch=SY.db.batch();n=0;b.commit().catch(err=>{console.warn(err);syncError(err)})};
-  for(const id of ids){batch.set(col.doc(id),{m:writes[id]},{merge:true});if(++n>=400)flush()}
+  const col=SY.db.collection('data');let batch=SY.db.batch(),n=0,keys=[];
+  const stamp=Date.now();
+  const flush=()=>{const b=batch,ks=keys;batch=SY.db.batch();n=0;keys=[];
+    b.commit().then(()=>{for(const lk of ks)if(SY.unsent[lk]===stamp)delete SY.unsent[lk];SY.err=null;SY.okAt=Date.now();saveUnsent();renderSafe()})
+     .catch(err=>{console.warn(err);for(const lk of ks)if(SY.unsent[lk]===stamp)SY.last[lk]='\u0000';SY.err=(err&&err.code)||'unknown';syncError(err);renderSafe()})};
+  for(const id of ids){batch.set(col.doc(id),{m:writes[id]},{merge:true});
+    const isH=id[0]==='h',sid=isH?null:id.slice(2,id.lastIndexOf('_'));
+    for(const k in writes[id]){const lk=isH?'H:'+k:'M:'+sid+':'+k;SY.unsent[lk]=stamp;keys.push(lk)}
+    if(++n>=400)flush()}
   if(cfg)batch.set(col.doc('config'),{c:cfg,t:Date.now()});
-  flush();
+  saveUnsent();flush();renderSafe();setTimeout(renderSafe,9000);
 }
+// keys this phone changed that the account has not confirmed yet; kept across app restarts so a reopen never overwrites them
+function syncLine(){const n=unsentCount();return '<p class="hint" style="margin-bottom:8px">'+(n?'<b>'+n+' change'+(n===1?'':'s')+' waiting to send</b>'+(SY.err?' ('+esc(SY.err)+')':'')+'. ':'All changes are saved to your account. ')+(SY.okAt?'Last saved '+new Date(SY.okAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})+'.':'')+'</p>'}
+function saveUnsent(){save('sdm.unsent',SY.unsent)}
+function unsentCount(){return Object.keys(SY.unsent).length}
+function resendAll(){for(const lk in SY.unsent)SY.last[lk]='\u0000';pushChanges()}
+setInterval(()=>{if(SY.ready&&navigator.onLine&&unsentCount()&&Object.values(SY.unsent).some(t=>Date.now()-t>20000))resendAll();if(SY.on)renderSafe()},20000);
+// auto check: every minute, and whenever the app comes back on screen, send anything waiting and pull the latest from the account
+let checking=false;
+async function autoCheck(){
+  if(!SY.ready||!SY.db||checking||!navigator.onLine)return;if(SY.listenDead&&SY.user){startSync(SY.user);return}checking=true;
+  try{
+    pushChanges();if(unsentCount())resendAll();
+    const snap=await SY.db.collection('data').get({source:'server'});
+    snap.forEach(d=>{const res=applyRemoteDoc(d.id,d.data());if(res.changedH.size||res.cfgChanged||res.marksChanged)queueRemoteRender(res)});
+    SY.checkedAt=Date.now();
+  }catch(e){console.warn(e)}
+  checking=false;
+}
+setInterval(autoCheck,60000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(autoCheck,500)});
 function syncError(err){if(err&&err.code==='permission-denied')toast('Your account is not allowed to save here. Check the email you signed in with.')}
 function rerenderAll(){
   for(const id in polys){removeHalo(id);houseLayer.removeLayer(polys[id]);delete polys[id]}
@@ -1365,16 +1396,24 @@ async function startSync(user){
   if(firstOnThisPhone)for(const sid in S.marks){newM[sid]=newM[sid]||{};for(const k in S.marks[sid])if(!(k in newM[sid]))newM[sid][k]=S.marks[sid][k]}
   if(rC){const localSeasons=S.seasons,localStatuses=S.statuses;applyConfig(rC);last.C=rC;
     if(firstOnThisPhone){for(const se of localSeasons)if(!S.seasons.some(x=>x.id===se.id))S.seasons.push(se);for(const st of localStatuses)if(!S.statuses.some(x=>x.id===st.id))S.statuses.push(st)}}
+  // anything this phone changed that never reached the account: this phone's copy wins and is sent again
+  for(const lk in SY.unsent){
+    if(lk.startsWith('H:')){const hid=lk.slice(2);if(H[hid]&&!H[hid].temp)newH[hid]=H[hid];else delete newH[hid]}
+    else if(lk.startsWith('M:')){const r=lk.slice(2),i=r.indexOf(':'),sid=r.slice(0,i),k=r.slice(i+1);const lm=S.marks[sid]&&S.marks[sid][k];
+      if(lm){(newM[sid]=newM[sid]||{})[k]=lm}else if(newM[sid])delete newM[sid][k]}
+    if(lk in last)last[lk]='\u0000'}
   H=newH;S.marks=newM;
   SY.last=last;SY.ready=true;SY.on=true;
   save('sdm.synced',FB_CONFIG.projectId+':'+user.uid);
   save(KS,S);{const out={};for(const id in H)if(!H[id].temp)out[id]=H[id];save(KH,out)}
-  pushChanges(); // sends anything this phone had that the account did not
+  SY.unsent={};saveUnsent();
+  pushChanges(); // sends anything this phone had that the account did not (this re-marks those keys as unsent until confirmed)
   setBanner(null);rerenderAll();
   if(SY.unsub)SY.unsub();
+  SY.listenDead=false;
   SY.unsub=SY.db.collection('data').onSnapshot({includeMetadataChanges:false},qs=>{
     qs.docChanges().forEach(ch=>{const res=applyRemoteDoc(ch.doc.id,ch.type==='removed'?{}:ch.doc.data());if(res.changedH.size||res.cfgChanged||res.marksChanged)queueRemoteRender(res)})
-  },err=>{console.warn(err);syncError(err)});
+  },err=>{console.warn(err);syncError(err);SY.listenDead=true});
   toast(firstOnThisPhone&&Object.keys(rH).length===0?'Your map is now saved to your account':'Signed in. Your map is up to date.');
 }
 function showLogin(show){$('#login').hidden=!show}
