@@ -141,7 +141,11 @@ button{cursor:pointer}
 .board th{border-top:0;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
 .board td:first-child,.board th:first-child{text-align:left;font-weight:700}
 .board tr.lead td{background:rgba(245,179,1,.14)}
-.star-ic{background:none;border:0}
+.star-ic,.ns-ic{background:none;border:0}
+.closeup .ns-ic{display:none}
+.ns-ic div{font-size:18px;line-height:1;filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.hl-in .noscout{background:#fff3bf;color:#5c3c00;border-radius:4px;padding:0 4px;font-size:11px;font-weight:700}
+.nslist summary{cursor:pointer;font-weight:600;padding:6px 0}
 .star-ic div{font-size:20px;line-height:1;color:#f5b301;text-shadow:0 0 2px #000,0 0 1px #000,0 1px 3px rgba(0,0,0,.6)}
 .big{margin:0;font-weight:700;color:#a87900;display:flex;gap:6px;align-items:center}
 .big span{color:#f5b301;font-size:18px;text-shadow:0 0 1px #000}
@@ -574,14 +578,19 @@ function buildSlices(hid){
     sp.on('contextmenu',e=>{L.DomEvent.stop(e);if(e.originalEvent)e.originalEvent.preventDefault();startMove(hid)});return sp.addTo(houseLayer)});
 }
 function unitShort(h){const us=h.u;if(us.length<2)return us.slice();let pre=us[0];for(const u of us)while(pre&&u.indexOf(pre)!==0)pre=pre.slice(0,-1);return us.map(u=>u.slice(pre.length)||u)}
-const halos={},stars={};
-function removeHalo(hid){removeSlices(hid);if(halos[hid]){houseLayer.removeLayer(halos[hid]);delete halos[hid]}if(stars[hid]){houseLayer.removeLayer(stars[hid]);delete stars[hid]}}
+const halos={},stars={},noscout={};
+// a stop in this season with a status or money but no scout credited
+function keyNoScout(k){const m=mark(S.active,k);return !!(m&&!m.seller&&(m.st||+m.sale||+m.don))}
+function houseNoScout(hid){const h=H[hid];if(!h)return false;if(hasUnits(h))return h.u.some(u=>keyNoScout(hid+'|'+u));return keyNoScout(hid)}
+function removeHalo(hid){if(noscout[hid]){houseLayer.removeLayer(noscout[hid]);delete noscout[hid]}removeSlices(hid);if(halos[hid]){houseLayer.removeLayer(halos[hid]);delete halos[hid]}if(stars[hid]){houseLayer.removeLayer(stars[hid]);delete stars[hid]}}
 function updateHalo(hid){
   const on=!!polys[hid];
   if(on&&houseNeedsPay(hid)){if(!halos[hid])halos[hid]=L.circleMarker(H[hid].c,{radius:19,color:'#e03131',weight:3,opacity:.95,dashArray:'6 4',fill:false,interactive:false,renderer}).addTo(houseLayer)}
   else if(halos[hid]){houseLayer.removeLayer(halos[hid]);delete halos[hid]}
   if(on&&houseBig(hid)){if(!stars[hid])stars[hid]=L.marker(H[hid].c,{icon:L.divIcon({className:'star-ic',html:'<div aria-hidden="true">\u2605</div>',iconSize:[20,20],iconAnchor:[-6,24]}),interactive:false,keyboard:false,zIndexOffset:500}).addTo(houseLayer)}
   else if(stars[hid]){houseLayer.removeLayer(stars[hid]);delete stars[hid]}
+  if(on&&!S.deliver&&houseNoScout(hid)){if(!noscout[hid])noscout[hid]=L.marker(H[hid].c,{icon:L.divIcon({className:'ns-ic',html:'<div aria-hidden="true">\ud83d\ude4b</div>',iconSize:[20,20],iconAnchor:[28,24]}),interactive:false,keyboard:false,zIndexOffset:500}).addTo(houseLayer)}
+  else if(noscout[hid]){houseLayer.removeLayer(noscout[hid]);delete noscout[hid]}
 }
 function restyle(hid){const p=polys[hid];if(p)p.setStyle(styleFor(hid));
   if(slices[hid]&&H[hid]&&H[hid].u)slices[hid].forEach((x,i)=>x.setStyle(sliceStyle(hid,H[hid].u[i])));updateHalo(hid)}
@@ -610,6 +619,7 @@ function drawDeliveryLabels(){
     mk.on('click',e=>{L.DomEvent.stop(e);onHouseTap(id)});mk.addTo(labelLayer)}
 }
 function drawLabels(){
+  map.getContainer().classList.toggle('closeup',map.getZoom()>=18);
   labelLayer.clearLayers();
   if(S.deliver){drawDeliveryLabels();return}
   if(map.getZoom()<18)return;
@@ -622,6 +632,7 @@ function drawLabels(){
     if(++count>600)break;
     let html='<div class="hl-in"><span class="hn'+(h.n?'':' none')+'">'+(h.n?esc(h.n):'?')+'</span>';
     if(houseNeedsPay(id))html+='<span class="unpaid">Not paid</span>';
+    if(houseNoScout(id))html+='<span class="noscout">\ud83d\ude4b No scout</span>';
     if(hasUnits(h)){const u=unitStats(id);html+='<span class="heatn">'+u.marked+' of '+u.total+' units</span>';
       if(!heat&&others.length&&others.some(sid=>mark(sid,id)))html+=dotsHtml(id,others)} // marked as one house before it was split
     else if(heat){const n=heatCount(id);if(n)html+='<span class="heatn">'+n+' of '+ids.length+'</span>'}
@@ -1063,7 +1074,11 @@ function openSeasons(){
         const top=names.find(n=>n!=='Not assigned'&&(rows[n].sale+rows[n].don)>0);
         return '<div><p class="label">Scout scoreboard</p><div class="board"><table><thead><tr><th>Scout</th><th>Sales</th><th>Donated</th><th>Total</th><th>Doors</th><th>Yes</th></tr></thead><tbody>'+
           names.map(n=>{const r=rows[n];return '<tr'+(n===top?' class="lead"':'')+'><td>'+(n===top?'\ud83d\udc51 ':'')+esc(n)+'</td><td>'+money(r.sale)+'</td><td>'+money(r.don)+'</td><td>'+money(r.sale+r.don)+'</td><td>'+r.doors+'</td><td>'+r.yes+'</td></tr>'}).join('')+
-          '</tbody></table></div><p class="hint" style="margin-top:8px">Doors counts every house a scout marked, yes or no. Pick who is selling with the Scout menu at the top.</p></div>'})()+
+          '</tbody></table></div><p class="hint" style="margin-top:8px">Doors counts every house a scout marked, yes or no. Pick who is selling with the Scout menu at the top.</p>'+
+          (()=>{const ns=Object.keys(m).filter(k=>H[k.split('|')[0]]&&keyNoScout(k)).map(k=>({k,hid:k.split('|')[0],unit:k.split('|')[1]}));if(!ns.length)return '';
+            ns.sort((a,b)=>(addrOf(H[a.hid])||'').localeCompare(addrOf(H[b.hid])||'',undefined,{numeric:true}));
+            return '<details class="nslist" style="margin-top:8px"><summary>\ud83d\ude4b '+ns.length+' house'+(ns.length===1?'':'s')+' with no scout. Tap to see them.</summary><div class="list cblist">'+ns.map(x=>{const mm=m[x.k];const st=statusById(mm.st);return '<button type="button" data-cb="'+esc(x.hid)+'"><b>'+esc(addrOf(H[x.hid])||'House with no number')+(x.unit?' unit '+esc(x.unit):'')+'</b><span>'+(st?esc(st.label):'')+((+mm.sale||0)+(+mm.don||0)?' \u00b7 '+money((+mm.sale||0)+(+mm.don||0)):'')+'</span></button>'}).join('')+'</div></details>'})()+
+          '</div>'})()+
       '<div><p class="label">Your seasons</p><div class="list">'+list+'</div><p class="hint" style="margin-top:8px">Switch on past seasons to see them as small dots under each house number. Zoom in close to see the dots.</p></div>'+
       (()=>{const m=S.marks[S.active]||{};const cb=Object.keys(m).filter(k=>m[k].st==='comeback'&&H[k.split('|')[0]]).map(k=>({k,hid:k.split('|')[0],unit:k.split('|')[1],back:m[k].back||''}));
         if(!cb.length)return'';cb.sort((a,b)=>(a.back?0:1)-(b.back?0:1)||a.back.localeCompare(b.back));
