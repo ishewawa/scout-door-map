@@ -830,13 +830,13 @@ function openHouse(hid,editNumber){
   if(hasUnits(h))return openBuilding(hid,editNumber);
   openRecord(hid,hid,null,editNumber);
 }
-function addrEditor(h,open){
-  return '<div id="numEdit"'+(open?'':' hidden')+'><p class="label">House number and street</p><div class="row"><input type="text" id="numIn" autocapitalize="characters" autocomplete="off" placeholder="10930" value="'+esc(h.n||'')+'" style="flex:0 0 32%"><input type="text" id="strIn" placeholder="Street name" value="'+esc(h.s||'')+'"></div><div class="row" style="margin-top:8px"><button class="btn primary" id="numSave">Save address</button>'+'</div></div>';
+function addrEditor(h,open,extra){
+  return '<div id="numEdit"'+(open?'':' hidden')+'><p class="label">House number and street</p><div class="row"><input type="text" id="numIn" autocapitalize="characters" autocomplete="off" placeholder="10930" value="'+esc(h.n||'')+'" style="flex:0 0 32%"><input type="text" id="strIn" placeholder="Street name" value="'+esc(h.s||'')+'"></div><div class="row" style="margin-top:8px"><button class="btn primary" id="numSave">Save address</button>'+(extra||'')+'</div></div>';
 }
 function unitEditor(h,open){
   return '<div id="unitEdit"'+(open?'':' hidden')+'><p class="label">Units in this building</p><p class="hint" style="margin-bottom:8px">For townhomes or apartments. Type each door number, one per line or separated by commas.</p>'+
     '<textarea id="unitsIn" placeholder="10930, 10932, 10934 or 101, 102, 103">'+esc((h.u||[]).join(', '))+'</textarea>'+
-    '<div class="row" style="margin-top:8px"><span class="muted" style="flex:none">Quick fill</span><input type="text" id="uFrom" autocapitalize="characters" autocomplete="off" placeholder="10853A" aria-label="First unit"><span class="muted" style="flex:none">to</span><input type="text" id="uTo" autocapitalize="characters" autocomplete="off" placeholder="10853D" aria-label="Last unit"><button class="btn small" id="uFill">Add</button></div>'+
+    '<div class="row" style="margin-top:8px"><span class="muted" style="flex:none">Quick fill</span><input type="text" id="uFrom" style="min-width:0;width:0;flex:1" autocapitalize="characters" autocomplete="off" placeholder="10853A" aria-label="First unit"><span class="muted" style="flex:none">to</span><input type="text" id="uTo" style="min-width:0;width:0;flex:1" autocapitalize="characters" autocomplete="off" placeholder="10853D" aria-label="Last unit"><button class="btn small" id="uFill" style="flex:none">Add</button></div>'+
     '<div class="row" style="margin-top:8px"><button class="btn primary" id="uSave">Save units</button></div></div>';
 }
 // move a box: hold it (or tap Move box), then drag the handle or tap the new spot
@@ -863,7 +863,7 @@ function wireEditors(hid,reopen){
   const mb=q('#moveB');if(mb)mb.addEventListener('click',()=>startMove(hid));
   const rv=q('#revU');if(rv)rv.addEventListener('click',()=>{H[hid].rev=!H[hid].rev;saveH();redrawHouse(hid);toast(H[hid].rev?'Units now run the other way':'Units back in original order')});
   const no=q('#numOpen');if(no)no.addEventListener('click',()=>{q('#numEdit').hidden=false;no.hidden=true;q('#numIn').focus()});
-  const uo=q('#unitOpen');if(uo)uo.addEventListener('click',()=>{q('#unitEdit').hidden=false;uo.hidden=true;q('#unitsIn').focus()});
+  const uo=q('#unitOpen');if(uo){const lbl=uo.textContent;uo.addEventListener('click',()=>{const ed=q('#unitEdit'),open=ed.hidden;ed.hidden=!open;uo.textContent=open?'Cancel':lbl;uo.setAttribute('aria-expanded',String(open));if(open)q('#unitsIn').focus()})}
   const saveAddr=(quiet)=>{const n=q('#numIn').value.trim(),st=q('#strIn').value.trim();if(n===(H[hid].n||'')&&st===(H[hid].s||''))return;
     keepHouse(hid);H[hid].n=n;H[hid].s=st;H[hid].e=1;saveH();drawLabels();const t=sheet.querySelector('.sh-title h2');if(t&&!t.dataset.unit)t.textContent=addrOf(H[hid])||'House with no number';if(!quiet)toast('Address saved')};
   const ns=q('#numSave');if(ns)ns.addEventListener('click',()=>saveAddr(false));
@@ -915,7 +915,7 @@ function openRecord(key,hid,unit,editNumber){
   openSheet(
     '<div class="sh-head"><div class="sh-title"><h2>'+title+'</h2><p>'+sub+'</p></div>'+X+'</div>'+
     '<div class="sh-body">'+
-      (unit?'<div class="row">'+BACK+'</div>':addrEditor(h,true))+
+      (unit?'<div class="row">'+BACK+'</div>':addrEditor(h,true,h.parent?'':'<button class="btn small" id="unitOpen" aria-expanded="false" style="margin-left:auto">Split into units</button>')+(h.parent?'':unitEditor(h,false)))+
       '<div class="soldby"><label for="soldBy" class="muted" style="flex:none;font-weight:600">Sold by</label><select id="soldBy"><option value="">Not set</option>'+sellers().map(n=>'<option'+((m.seller||'')===n?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select></div>'+
       (()=>{const b=bigBuyer(key);return b?'<p class="big" id="bigLine"><span>\u2605</span>Big buyer: '+money(b.amt)+' '+b.kind+' in '+esc(b.season)+'</p>':'<p class="big" id="bigLine" hidden></p>'})()+
       '<div><p class="label">What happened</p><div class="chips" id="chips">'+
@@ -933,8 +933,8 @@ function openRecord(key,hid,unit,editNumber){
       '<div class="rcpt" id="rcpt"'+(((+m.sale)||(+m.don))?'':' hidden')+'><b>Receipt</b>'+(()=>{const pp=!m.phone&&pastPhone(key);return '<input type="tel" id="rcPhone" placeholder="Their cell number" autocomplete="off" value="'+esc(m.phone||(pp?pp.phone:''))+'">'+(pp?'<span class="hint">Number saved from '+esc(pp.season)+'. Check it is still right.</span>':'')})()+'<div class="row" style="flex-wrap:wrap"><button class="btn primary small" id="rcText" type="button">Text receipt</button><button class="btn small" id="rcCopy" type="button">Copy receipt</button></div></div>'+
       '<div><p class="label"><label for="note">Notes for '+esc(se?se.name:'')+'</label></p><textarea id="note" placeholder="Bought 2 caramel corn. Has a dog. Ask for Jen.">'+esc(m.note||'')+'</textarea></div>'+
       historyHtml(key)+
-      (unit?'':unitEditor(h,false)+
-        '<div class="row" style="flex-wrap:wrap">'+(h.parent?'':'<button class="btn small" id="unitOpen">Split into units</button>')+'<button class="btn small" id="moveB">Move box</button>'+(h.custom?'<button class="btn small" id="rotL" aria-label="Rotate box left">\u21ba Rotate</button><button class="btn small" id="rotR" aria-label="Rotate box right">Rotate \u21bb</button>':'')+'</div>')+
+      (unit?'':
+        '<div class="row" style="flex-wrap:wrap">'+'<button class="btn small" id="moveB">Move box</button>'+(h.custom?'<button class="btn small" id="rotL" aria-label="Rotate box left">\u21ba Rotate</button><button class="btn small" id="rotR" aria-label="Rotate box right">Rotate \u21bb</button>':'')+'</div>')+
       '<div class="danger-row"><button class="btn small" id="clearStop">Clear '+esc(se?se.name:'')+' stop</button>'+(unit?'':'<button class="btn small danger" id="delHouse">Delete box</button>')+'</div>'+
     '</div>');
   sheet.querySelector('#chips').addEventListener('click',e=>{
