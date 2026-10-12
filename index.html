@@ -1032,7 +1032,7 @@ function setMark(key,hid,patch){
   if(!S.marks[S.active])S.marks[S.active]={};
   const v=Object.assign({st:null,note:'',paid:false,pay:{},sale:0,don:0},S.marks[S.active][key],patch,{t:Date.now()});
   if(!v.seller&&S.lastSeller&&('st' in patch||'items' in patch||'don' in patch))v.seller=S.lastSeller;
-  if(!v.st&&!v.note&&!v.paid&&!v.sale&&!v.don)delete S.marks[S.active][key];else S.marks[S.active][key]=v;
+  if(!v.st&&!v.note&&!v.paid&&!v.sale&&!v.don&&!v.seller&&!v.phone)delete S.marks[S.active][key];else S.marks[S.active][key]=v;
   if(!patch.note)S.dirty=(S.dirty||0)+1; // typing a note counts once per save, not per letter
   saveS();restyle(hid);renderTally();if(map.getZoom()>=18)drawLabels();renderSafe();
   const w=sheet.querySelector('#payWarn');if(w)w.hidden=!needsPay(key);
