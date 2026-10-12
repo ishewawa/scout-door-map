@@ -1,6 +1,6 @@
 // Lets the app open with no signal. Pages come fresh from the web when online;
 // the map library, fonts and sign in code are kept after the first visit.
-const CACHE='doormap-v2';
+const CACHE='doormap-v3';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 const KEEP=['cdnjs.cloudflare.com','www.gstatic.com','fonts.googleapis.com','fonts.gstatic.com'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)));self.skipWaiting()});

@@ -1309,11 +1309,12 @@ function pushChanges(){
   const flush=()=>{const b=batch,ks=keys;batch=SY.db.batch();n=0;keys=[];
     b.commit().then(()=>{for(const lk of ks)if(SY.unsent[lk]===stamp)delete SY.unsent[lk];SY.err=null;SY.okAt=Date.now();saveUnsent();renderSafe()})
      .catch(err=>{console.warn(err);for(const lk of ks)if(SY.unsent[lk]===stamp)SY.last[lk]='\u0000';SY.err=(err&&err.code)||'unknown';syncError(err);renderSafe()})};
-  for(const id of ids){batch.set(col.doc(id),{m:writes[id]},{merge:true});
+  const TS=firebase.firestore.FieldValue.serverTimestamp();
+  for(const id of ids){batch.set(col.doc(id),{m:writes[id],u:TS},{merge:true});
     const isH=id[0]==='h',sid=isH?null:id.slice(2,id.lastIndexOf('_'));
     for(const k in writes[id]){const lk=isH?'H:'+k:'M:'+sid+':'+k;SY.unsent[lk]=stamp;keys.push(lk)}
     if(++n>=400)flush()}
-  if(cfg)batch.set(col.doc('config'),{c:cfg,t:Date.now()});
+  if(cfg)batch.set(col.doc('config'),{c:cfg,t:Date.now(),u:TS});
   saveUnsent();flush();renderSafe();setTimeout(renderSafe,9000);
 }
 // keys this phone changed that the account has not confirmed yet; kept across app restarts so a reopen never overwrites them
@@ -1324,18 +1325,45 @@ function resendAll(){for(const lk in SY.unsent)SY.last[lk]='\u0000';pushChanges(
 setInterval(()=>{if(SY.ready&&navigator.onLine&&unsentCount()&&Object.values(SY.unsent).some(t=>Date.now()-t>20000))resendAll();if(SY.on)renderSafe()},20000);
 // auto check: every minute, and whenever the app comes back on screen, send anything waiting and pull the latest from the account
 let checking=false;
+// direct check: ask the account "what changed since last time" over a plain web request, so it works even if the live connection stalls
 async function autoCheck(){
-  if(!SY.ready||!SY.db||checking||!navigator.onLine)return;if(SY.listenDead&&SY.user){startSync(SY.user);return}checking=true;
+  if(!SY.ready||!SY.user||checking||!navigator.onLine||document.visibilityState==='hidden')return;
+  if(SY.listenDead){startSync(SY.user);return}
+  checking=true;const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),12000);
   try{
-    pushChanges();if(unsentCount())resendAll();
-    const snap=await SY.db.collection('data').get({source:'server'});
-    snap.forEach(d=>{const res=applyRemoteDoc(d.id,d.data());if(res.changedH.size||res.cfgChanged||res.marksChanged)queueRemoteRender(res)});
+    if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges();
+    if(unsentCount()&&Object.values(SY.unsent).some(t=>Date.now()-t>20000))resendAll();
+    const started=Date.now();
+    const tok=await SY.user.getIdToken();
+    const since=new Date((SY.since||Date.now())-3*60000).toISOString();
+    const r=await fetch('https://firestore.googleapis.com/v1/projects/'+FB_CONFIG.projectId+'/databases/(default)/documents:runQuery?key='+FB_CONFIG.apiKey,
+      {method:'POST',signal:ctl.signal,headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json'},
+       body:JSON.stringify({structuredQuery:{from:[{collectionId:'data'}],where:{fieldFilter:{field:{fieldPath:'u'},op:'GREATER_THAN',value:{timestampValue:since}}}}})});
+    if(!r.ok)throw new Error('check '+r.status);
+    const rows=await r.json();let newest=0;
+    if(SY.okAt>=started-1000){checking=false;clearTimeout(to);return} // this phone saved while we were asking: answer may be stale, ask again next round
+    for(const row of rows){
+      if(row.readTime){const t=Date.parse(row.readTime);if(t>newest)newest=t}
+      const d=row.document;if(!d)continue;
+      const id=d.name.slice(d.name.lastIndexOf('/')+1),f=d.fields||{};
+      const data={};
+      if(f.c&&f.c.stringValue!=null)data.c=f.c.stringValue;
+      if(f.m){data.m={};const mf=(f.m.mapValue&&f.m.mapValue.fields)||{};for(const k in mf)if(mf[k].stringValue!=null)data.m[k]=mf[k].stringValue}
+      const res=applyRemoteDoc(id,data);if(res.changedH.size||res.cfgChanged||res.marksChanged)queueRemoteRender(res)}
+    if(newest)SY.since=newest;
     SY.checkedAt=Date.now();
   }catch(e){console.warn(e)}
-  checking=false;
+  clearTimeout(to);checking=false;
 }
-setInterval(autoCheck,60000);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(autoCheck,500)});
+setInterval(autoCheck,15000);
+// coming back to the app: restart the live connection (phones often let it go stale while asleep) and check right away
+let hiddenAt=0;
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'){hiddenAt=Date.now();return}
+  if(SY.db&&SY.ready&&hiddenAt&&Date.now()-hiddenAt>20000){try{SY.db.disableNetwork().then(()=>SY.db.enableNetwork()).catch(()=>{})}catch(e){}}
+  setTimeout(autoCheck,800);
+});
+window.addEventListener('focus',()=>setTimeout(autoCheck,800));
 function syncError(err){if(err&&err.code==='permission-denied')toast('Your account is not allowed to save here. Check the email you signed in with.')}
 function rerenderAll(){
   for(const id in polys){removeHalo(id);houseLayer.removeLayer(polys[id]);delete polys[id]}
@@ -1351,18 +1379,18 @@ function applyRemoteDoc(id,data){
   const m=(data&&data.m)||{};
   if(id[0]==='h'){
     const b=+id.slice(1);
-    for(const hid in m){const lk='H:'+hid,j=m[hid];if(j===SY.last[lk])continue;const local=H[hid]&&!H[hid].temp?JSON.stringify(H[hid]):undefined;if(local!==SY.last[lk])continue;
+    for(const hid in m){const lk='H:'+hid,j=m[hid];if(lk in SY.unsent)continue;const local=H[hid]&&!H[hid].temp?JSON.stringify(H[hid]):undefined;if(j===local){SY.last[lk]=j;continue}
       try{H[hid]=JSON.parse(j);SY.last[lk]=j;changedH.add(hid)}catch(e){}}
     for(const lk in SY.last){if(!lk.startsWith('H:'))continue;const hid=lk.slice(2);if(bucket(hid)!==b||hid in m)continue;
-      if(H[hid]&&JSON.stringify(H[hid])===SY.last[lk]){delete H[hid];delete SY.last[lk];changedH.add(hid)}}
+      if(!(lk in SY.unsent)){if(H[hid])changedH.add(hid);delete H[hid];delete SY.last[lk]}}
   }else if(id.startsWith('m_')){
     const r=id.slice(2),i=r.lastIndexOf('_'),sid=r.slice(0,i),b=+r.slice(i+1);
     if(!S.marks[sid])S.marks[sid]={};const sm=S.marks[sid];
-    for(const k in m){const lk='M:'+sid+':'+k,j=m[k];if(j===SY.last[lk])continue;const local=sm[k]?JSON.stringify(sm[k]):undefined;if(local!==SY.last[lk])continue;
+    for(const k in m){const lk='M:'+sid+':'+k,j=m[k];if(lk in SY.unsent)continue;const local=sm[k]?JSON.stringify(sm[k]):undefined;if(j===local){SY.last[lk]=j;continue}
       try{sm[k]=JSON.parse(j);SY.last[lk]=j;marksChanged=true;changedH.add(k.split('|')[0])}catch(e){}}
     const pre='M:'+sid+':';
     for(const lk in SY.last){if(!lk.startsWith(pre))continue;const k=lk.slice(pre.length);if(bucket(k)!==b||k in m)continue;
-      if(sm[k]&&JSON.stringify(sm[k])===SY.last[lk]){delete sm[k];delete SY.last[lk];marksChanged=true;changedH.add(k.split('|')[0])}}
+      if(!(lk in SY.unsent)){if(sm[k]){marksChanged=true;changedH.add(k.split('|')[0])}delete sm[k];delete SY.last[lk]}}
   }
   return{changedH,marksChanged,cfgChanged};
 }
@@ -1403,7 +1431,7 @@ async function startSync(user){
       if(lm){(newM[sid]=newM[sid]||{})[k]=lm}else if(newM[sid])delete newM[sid][k]}
     if(lk in last)last[lk]='\u0000'}
   H=newH;S.marks=newM;
-  SY.last=last;SY.ready=true;SY.on=true;
+  SY.last=last;SY.ready=true;SY.on=true;SY.since=Date.now();
   save('sdm.synced',FB_CONFIG.projectId+':'+user.uid);
   save(KS,S);{const out={};for(const id in H)if(!H[id].temp)out[id]=H[id];save(KH,out)}
   SY.unsent={};saveUnsent();
@@ -1412,6 +1440,7 @@ async function startSync(user){
   if(SY.unsub)SY.unsub();
   SY.listenDead=false;
   SY.unsub=SY.db.collection('data').onSnapshot({includeMetadataChanges:false},qs=>{
+    if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null;pushChanges()}SY.heardAt=Date.now();
     qs.docChanges().forEach(ch=>{const res=applyRemoteDoc(ch.doc.id,ch.type==='removed'?{}:ch.doc.data());if(res.changedH.size||res.cfgChanged||res.marksChanged)queueRemoteRender(res)})
   },err=>{console.warn(err);syncError(err);SY.listenDead=true});
   toast(firstOnThisPhone&&Object.keys(rH).length===0?'Your map is now saved to your account':'Signed in. Your map is up to date.');
