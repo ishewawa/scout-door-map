@@ -173,6 +173,7 @@ body.helper .tally .tchip:not(.warn){opacity:.9}
 .dl.pk{border:2px solid #7048e8;background:#f1ecff}.dl.pk.owe{border-color:#e03131;border-width:3px}
 .tchip.dv{background:#ffb300;color:#2b1d00}.tchip.dv b{color:#2b1d00}.dl .pktag{display:block;font-size:11px;font-weight:700;color:#7048e8}.dhow .chip{min-height:44px;justify-content:center;font-size:14px}
 .dphoto{margin-top:8px;align-items:center}.dphoto .btn{flex:1}
+.pgeo{margin:6px 2px 0}.pgeo.far{color:#c92a2a;font-weight:700}
 .dthumb{border:0;padding:0;background:none;width:58px;height:58px;border-radius:12px;overflow:hidden;flex:none}
 .dthumb img{width:100%;height:100%;object-fit:cover;display:block;background:color-mix(in srgb,var(--ink) 8%,var(--surface))}
 .vbtn{width:100%;border:0;border-radius:14px;padding:13px;background:#008cff;color:#fff;font:700 16px/1.2 var(--head)}
@@ -1289,6 +1290,13 @@ function showVenmo(x,hid,after){
     if(a==='text'){location.href='sms:?&body='+encodeURIComponent('Here is the link to pay '+money(x.o.due)+' for your wreaths: '+url);return}
     if(a==='paid'){setMark(x.key,hid,{paid:true,pay:{venmo:true}});drawLabels();if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()}toast('Marked paid by Venmo');done()}});
 }
+// where the phone is when a photo is taken, to show how far it was from the house
+function hereNow(){return new Promise(res=>{if(!navigator.geolocation)return res(null);
+  navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy||0}),()=>res(null),{enableHighAccuracy:true,timeout:20000,maximumAge:5000})})}
+function metersBetween(a,c){const R=6371000,t=Math.PI/180;const dLat=(c[0]-a.lat)*t,dLng=(c[1]-a.lng)*t;const h=Math.sin(dLat/2)**2+Math.cos(a.lat*t)*Math.cos(c[0]*t)*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+function geoText(pg){if(!pg)return '';const ft=pg.d*3.281;const far=pg.d-(pg.acc||0)>100;
+  const dist=ft<1000?Math.round(ft/10)*10+' ft':(ft/5280).toFixed(1)+' mi';
+  return (far?'⚠️ Taken '+dist+' from the house':'📍 Taken '+(ft<60?'at the house':dist+' from the house'))}
 // delivery photos: shrunk on the phone (about 1000px, JPEG) and kept in their own spot in the account
 async function compressPhoto(file){
   const src=URL.createObjectURL(file);
@@ -1300,10 +1308,10 @@ async function compressPhoto(file){
     return url}finally{URL.revokeObjectURL(src)}}
 const photoCache={};
 function photoId(key){return encodeURIComponent(S.active+'|'+key)}
-async function savePhoto(key,url){
+async function savePhoto(key,url,geo){
   if(!SY.ready||!SY.db)throw new Error('Sign in to save photos');
   photoCache[S.active+'|'+key]=url;
-  const w=SY.db.collection('photos').doc(photoId(key)).set({img:url,t:Date.now(),by:deviceName()});
+  const w=SY.db.collection('photos').doc(photoId(key)).set({img:url,t:Date.now(),by:deviceName(),geo:geo?{lat:geo.lat,lng:geo.lng,acc:Math.round(geo.acc)}:null});
   // with no signal the photo waits on the phone and uploads later; only stop on a real refusal
   await Promise.race([w,new Promise(r=>setTimeout(r,4000))]).catch(e=>{if(e&&e.code==='permission-denied')throw new Error('Your account rules do not allow photos yet');throw e});
 }
@@ -1349,7 +1357,7 @@ function openDelivery(hid){
       (i===0?'<a class="btn" style="text-align:center;text-decoration:none" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+h.c[0]+','+h.c[1]+'">Navigate in Google Maps</a>':'')+
       '<button class="big-btn'+(m.delivered?' undo':'')+'" data-dlv="'+i+'">'+(m.delivered?'Delivered \u2713'+(m.dBy?' by '+esc(m.dBy):'')+(m.dAt?' at '+new Date(m.dAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):'')+(m.how==='door'?', left at door':m.how==='person'?', handed to someone':m.how==='pickup'?', picked up':'')+' (tap to undo)':(m.how==='pickup'?'They picked it up':'Mark delivered'))+'</button>'+
       '<div class="chips dhow" role="group" aria-label="How it was delivered"><button class="chip" data-how="door" data-i="'+i+'" aria-pressed="'+(m.how==='door')+'">\ud83d\udeaa Left at door</button><button class="chip" data-how="person" data-i="'+i+'" aria-pressed="'+(m.how==='person')+'">\ud83e\udd1d Handed to someone</button><button class="chip pkchip" data-how="pickup" data-i="'+i+'" aria-pressed="'+(m.how==='pickup')+'">\ud83d\udce6 Will pick up from us</button></div>'+
-      '<div class="row dphoto"><button class="btn" data-photo="'+i+'">\ud83d\udcf7 '+(m.photo?'Retake photo':(m.delivered?'Add photo':'Photo + mark delivered'))+'</button><button class="btn small" data-gallery="'+i+'" aria-label="Pick a photo you already took">From photos</button>'+(m.photo?'<button class="dthumb" data-view="'+i+'" aria-label="See delivery photo"><img alt="" data-thumb="'+esc(x.key)+'"></button>':'')+'</div></div>'});
+      '<div class="row dphoto"><button class="btn" data-photo="'+i+'">\ud83d\udcf7 '+(m.photo?'Retake photo':(m.delivered?'Add photo':'Photo + mark delivered'))+'</button><button class="btn small" data-gallery="'+i+'" aria-label="Pick a photo you already took">From photos</button>'+(m.photo?'<button class="dthumb" data-view="'+i+'" aria-label="See delivery photo"><img alt="" data-thumb="'+esc(x.key)+'"></button>':'')+'</div>'+(m.photo&&m.pgeo?'<p class="hint pgeo'+(m.pgeo.d-(m.pgeo.acc||0)>100?' far':'')+'">'+geoText(m.pgeo)+'</p>':'')+'</div>'});
   openSheet('<div class="sh-head"><div class="sh-title"><h2>'+esc(addrOf(h)||'House')+'</h2><p>Delivery for '+esc((seasonById(S.active)||{}).name||'')+'</p></div>'+X+'</div>'+
     '<div class="sh-body">'+html+'<button class="btn" id="dFull">Open full details</button></div>',list.length>1);
   sheet.querySelector('#dFull').addEventListener('click',()=>openHouse(hid));
@@ -1359,10 +1367,12 @@ function openDelivery(hid){
     if(nv&&nv!=='pickup'&&!x.o.m.delivered){deliverKey(x.key,hid,true,null);return}
     if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()}openDelivery(hid)}));
   sheet.querySelectorAll('[data-thumb]').forEach(img=>getPhoto(img.getAttribute('data-thumb')).then(u=>{if(u)img.src=u}));
-  sheet.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{const x=list[+b.getAttribute('data-view')];getPhoto(x.key).then(u=>{if(!u)return toast('Photo not loaded yet');const bg=document.createElement('div');bg.className='modal-bg';bg.innerHTML='<div class="modal" style="padding:10px"><img src="'+u+'" alt="Delivery photo" style="width:100%;border-radius:14px;display:block"><p class="hint" style="margin:8px 4px">'+esc(addrOf(H[hid])||'')+(x.o.m.dBy?' \u00b7 by '+esc(x.o.m.dBy):'')+(x.o.m.photo?' \u00b7 '+new Date(x.o.m.photo).toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):'')+'</p><button class="btn" style="width:100%">Close</button></div>';document.body.appendChild(bg);bg.addEventListener('click',e=>{if(e.target===bg||e.target.closest('button'))bg.remove()})})}));
-  const takePhoto=(i,cam)=>{const x=list[i];const key=x.key;
+  sheet.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{const x=list[+b.getAttribute('data-view')];getPhoto(x.key).then(u=>{if(!u)return toast('Photo not loaded yet');const bg=document.createElement('div');bg.className='modal-bg';bg.innerHTML='<div class="modal" style="padding:10px"><img src="'+u+'" alt="Delivery photo" style="width:100%;border-radius:14px;display:block"><p class="hint" style="margin:8px 4px">'+esc(addrOf(H[hid])||'')+(x.o.m.dBy?' \u00b7 by '+esc(x.o.m.dBy):'')+(x.o.m.photo?' \u00b7 '+new Date(x.o.m.photo).toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):'')+(x.o.m.pgeo?'<br>'+geoText(x.o.m.pgeo):'')+'</p><button class="btn" style="width:100%">Close</button></div>';document.body.appendChild(bg);bg.addEventListener('click',e=>{if(e.target===bg||e.target.closest('button'))bg.remove()})})}));
+  const takePhoto=(i,cam)=>{const x=list[i];const key=x.key;const where=cam?hereNow():Promise.resolve(null);
     pickPhoto(cam,async f=>{toast('Saving photo...');
-      try{const url=await compressPhoto(f);await savePhoto(key,url);setMark(key,hid,{photo:Date.now()});
+      try{const url=await compressPhoto(f);const g=await Promise.race([where,new Promise(r=>setTimeout(()=>r(null),5000))]);
+        const pg=g&&H[hid]?{d:Math.round(metersBetween(g,H[hid].c)),acc:Math.round(g.acc)}:null;
+        await savePhoto(key,url,g);setMark(key,hid,{photo:Date.now(),pgeo:pg});
         const cur=mark(S.active,key)||{};
         if(!cur.delivered&&cur.how!=='pickup'){await deliverKey(key,hid,true,null);toast('Photo saved and delivered')}
         else{if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()}openDelivery(hid);toast('Photo saved')}}
