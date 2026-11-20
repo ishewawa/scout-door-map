@@ -159,6 +159,14 @@ button{cursor:pointer}
 body.helper .tabs,body.helper #money,body.helper #scoutSel,body.helper #seasonPill,body.helper #fabDeliver,body.helper #fabAdd,body.helper #dFull,body.helper #shareRoute{display:none!important}
 body.helper .tally .tchip:not(.warn){opacity:.9}
 .pinin{font-size:28px!important;letter-spacing:.4em;text-align:center}
+.tour-ring{position:fixed;z-index:960;border-radius:14px;box-shadow:0 0 0 3px #f5b301,0 0 0 9999px rgba(2,6,23,.62);pointer-events:none;transition:all .25s ease}
+.tour-card{position:fixed;z-index:961;left:14px;right:14px;max-width:420px;margin:0 auto;background:var(--surface);color:var(--ink);border-radius:20px;padding:18px 18px 14px;box-shadow:0 16px 40px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:10px}
+.tour-card h3{margin:0;font:800 19px/1.2 var(--head);letter-spacing:-.01em}
+.tour-card p{margin:0;font-size:15px;line-height:1.45;color:var(--muted)}
+.tour-card .row{justify-content:space-between;align-items:center}
+.tour-dots{display:flex;gap:5px}.tour-dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}.tour-dots i.on{background:var(--accent)}
+.tour-skip{border:0;background:none;color:var(--muted);font-weight:600;padding:8px 4px}
+@media (prefers-reduced-motion:reduce){.tour-ring{transition:none}}
 .tchip.share{border:0;background:#2563eb;color:#fff;font-weight:700;cursor:pointer}
 .rtprev{min-height:200px;font-size:13px;line-height:1.45;font-family:ui-monospace,Menlo,monospace}
 .heatn{font:600 10px/1 var(--body);background:#111;color:#fff;border-radius:3px;padding:1px 3px;margin-top:2px}
@@ -462,6 +470,7 @@ function defaults(){return{
   heat:{on:false,status:'yes'},
   base:'street', view:{c:[44.9239,-92.9594],z:15}
 }}
+const FIRST_RUN=(()=>{try{return !localStorage.getItem('sdm.state.v1')&&!localStorage.getItem('sdm.tour')}catch(e){return false}})();
 let S=Object.assign(defaults(),load(KS,{}));
 let H=load(KH,{});
 let T=new Set(load(KT,[]));
@@ -1205,6 +1214,36 @@ function askPin(title,hint){return new Promise(res=>{const bg=document.createEle
 document.getElementById('helperExit').addEventListener('click',async()=>{const c=helperCfg();if(!c)return applyHelper();
   const v=await askPin('Enter the PIN to leave helper mode');if(v===null)return;if(v!==c.pin){toast('Wrong PIN');return}
   try{localStorage.removeItem('sdm.helper')}catch(e){}applyHelper();setDeliver(false);toast('Helper mode is off')});
+// first time tour: a few cards that point at the main parts of the app
+const TOUR=[
+  {t:'Welcome to Door Map',d:'Track every door your scouts knock, see who bought, and deliver without missing anyone. This takes about a minute.'},
+  {sel:'#map',t:'Tap a house',d:'Every house is a box on the map. Tap one to mark what happened: Yes, No, Not home, Come back. Add items and the price adds itself up.'},
+  {sel:'#scoutSel',t:'Pick who is selling',d:'Choose the scout before you start knocking. Every door they mark gets credited to them, so the scoreboard stays fair.'},
+  {sel:'#tally',t:'Your counts',d:'How many doors landed on each status this season. Swipe sideways to see them all.'},
+  {sel:'#money',t:'Your totals',d:'Sales, money not collected yet, donations and the total. The round button lets you hide numbers before you show the app to someone.'},
+  {sel:'#search',t:'Find an address',d:'Type a house number or street to jump straight to it.'},
+  {sel:'#fabAdd',t:'House missing?',d:'Tap this, then tap the map where the house is to add a box. Press and hold any box to move it.'},
+  {sel:'#fabDeliver',t:'Delivery day',d:'Turns the map into a delivery list: what each house gets, money due, directions, and Mark delivered. Phones sync live so nobody delivers twice.'},
+  {sel:'[data-tab="seasons"]',t:'Seasons',d:'Each year is its own layer. Compare years, see the scout scoreboard, your come back list, and export orders as a spreadsheet.'},
+  {sel:'[data-tab="settings"]',t:'Settings',d:'Change status names and colors, set up a delivery helper phone, and make backups. You can replay this tour from here anytime.'}
+];
+function startTour(){
+  if(helperCfg())return;closeSheet();let i=0;
+  const ring=document.createElement('div');ring.className='tour-ring';const card=document.createElement('div');card.className='tour-card';card.setAttribute('role','dialog');card.setAttribute('aria-live','polite');
+  document.body.append(ring,card);
+  const end=()=>{ring.remove();card.remove();window.removeEventListener('resize',show);try{localStorage.setItem('sdm.tour','done')}catch(e){}};
+  function show(){const st=TOUR[i];const el=st.sel&&document.querySelector(st.sel);const vis=el&&el.offsetParent!==null;
+    card.innerHTML='<h3>'+esc(st.t)+'</h3><p>'+esc(st.d)+'</p><div class="row"><div class="tour-dots">'+TOUR.map((_,k)=>'<i'+(k===i?' class="on"':'')+'></i>').join('')+'</div><div class="row" style="gap:6px">'+
+      (i<TOUR.length-1?'<button class="tour-skip" data-t="skip">Skip</button>':'')+(i?'<button class="btn small" data-t="back">Back</button>':'')+'<button class="btn primary small" data-t="next">'+(i===TOUR.length-1?'Done':'Next')+'</button></div></div>';
+    if(vis){let r=el.getBoundingClientRect();if(st.sel==='#map'){const h=r.height*.28;r={left:r.left+r.width*.2,top:r.top+r.height*.36,width:r.width*.6,height:h,bottom:r.top+r.height*.36+h}}
+      const pad=6;ring.style.display='block';ring.style.left=(r.left-pad)+'px';ring.style.top=(r.top-pad)+'px';ring.style.width=(r.width+pad*2)+'px';ring.style.height=(r.height+pad*2)+'px';
+      const below=(r.top+r.height/2)<innerHeight/2;card.style.top=below?Math.min(innerHeight-260,(r.bottom||r.top+r.height)+18)+'px':'auto';card.style.bottom=below?'auto':Math.max(14,innerHeight-r.top+18)+'px'}
+    else{ring.style.display='block';ring.style.left='50%';ring.style.top='50%';ring.style.width='0';ring.style.height='0';card.style.top='auto';card.style.bottom=Math.max(90,innerHeight*.35)+'px'}
+    card.querySelector('[data-t="next"]').focus()}
+  card.addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(!b)return;const a=b.getAttribute('data-t');
+    if(a==='skip')return end();if(a==='back'){i=Math.max(0,i-1);return show()}if(i===TOUR.length-1)return end();i++;show()});
+  window.addEventListener('resize',show);show();
+}
 function deviceName(){try{return localStorage.getItem('sdm.devname')||''}catch(e){return ''}}
 function openDelivery(hid){
   sheetKind='house';setTabs('map');const h=H[hid];const list=houseOrders(hid);
@@ -1316,6 +1355,7 @@ function openSettings(){
       '<div><p class="label">Top bar shows</p><p class="hint" style="margin-bottom:8px">Only changes this phone. Handy before showing the app to someone. With Donations off, Total counts sales only.</p><div class="list">'+
         [['sale','Sales'],['unpaid','Not paid'],['don','Donations'],['total','Total']].map(([k,l])=>'<div class="li"><div class="nm">'+l+'</div><label class="switch"><input type="checkbox" data-tb="'+k+'" aria-label="Show '+l+' in the top bar"'+(TB[k]?' checked':'')+'><span></span></label></div>').join('')+
       '</div></div>'+
+      '<div><p class="label">New here?</p><button class="btn" id="tourBtn" style="width:100%">Take the tour</button></div>'+
       '<div><p class="label">Delivery helper</p><p class="hint" style="margin-bottom:10px">Let someone help deliver on their own phone. Sign in to your account on their phone, then turn this on there. They only see the delivery map: what each house gets, directions, Paid, and Mark delivered. Totals, seasons and settings are hidden, and a PIN locks it. Deliveries sync right away, and the app checks before each one so nobody drops off twice.</p>'+
         '<p class="label" style="margin-top:4px"><label for="devName">Name on this phone</label></p><input type="text" id="devName" placeholder="Like Brea, Brandon or Grandma" value="'+esc(deviceName())+'">'+
         '<p class="hint" style="margin:6px 0 10px">Shows who delivered, like \u201cDelivered by Grandma at 2:15\u201d.</p>'+
@@ -1347,6 +1387,7 @@ function openSettings(){
       for(const sid in S.marks)for(const h in S.marks[sid])if(S.marks[sid][h].st===s.id)S.marks[sid][h].st=null;
       S.statuses.splice(i,1);if(S.heat.status===s.id)S.heat.status=S.statuses[0].id;saveS();restyleAll();openSettings()}});
   sheet.querySelectorAll('[data-tb]').forEach(i=>i.addEventListener('change',()=>{TB[i.getAttribute('data-tb')]=i.checked;saveTB();restyleAll()}));
+  sheet.querySelector('#tourBtn').addEventListener('click',()=>{setTabs('map');startTour()});
   sheet.querySelector('#devName').addEventListener('input',e=>{try{localStorage.setItem('sdm.devname',e.target.value.trim())}catch(x){}});
   sheet.querySelector('#helperOn').addEventListener('click',async()=>{
     if(!deviceName()){toast('Type the helper name first');sheet.querySelector('#devName').focus();return}
@@ -1709,6 +1750,7 @@ renderTop();drawHouses();drawLabels();wantTiles();renderSafe();initSync();
 if(isWebsite&&'serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 if(!Object.keys(H).length){setBanner('Zoom in on your street and tap a house to mark it.');setTimeout(()=>setBanner(null),6000)}
 applyHelper();
+if(FIRST_RUN&&!helperCfg())setTimeout(()=>{if(!document.querySelector('.login:not([hidden])'))startTour();else{const iv=setInterval(()=>{if(!document.querySelector('.login:not([hidden])')){clearInterval(iv);setTimeout(startTour,800)}},1000)}},1200);
 })();
 document.getElementById('updPill').addEventListener('click',()=>{const p=document.getElementById('updPill');p.textContent='Updating...';if(navigator.serviceWorker&&navigator.serviceWorker.controller){navigator.serviceWorker.getRegistration().then(r=>r&&r.update()).finally(()=>location.reload())}else location.reload()});
 </script>
