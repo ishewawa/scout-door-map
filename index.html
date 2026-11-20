@@ -174,6 +174,12 @@ body.helper .tally .tchip:not(.warn){opacity:.9}
 .tchip.dv{background:#ffb300;color:#2b1d00}.tchip.dv b{color:#2b1d00}.dl .pktag{display:block;font-size:11px;font-weight:700;color:#7048e8}.dhow .chip{min-height:44px;justify-content:center;font-size:14px}
 .dphoto{margin-top:8px;align-items:center}.dphoto .btn{flex:1}
 .pgeo{margin:6px 2px 0}.pgeo.far{color:#c92a2a;font-weight:700}
+.cam{position:fixed;inset:0;z-index:980;background:#000;display:flex;flex-direction:column}
+.cam video{flex:1;width:100%;min-height:0;object-fit:cover}
+.cam-bar{display:flex;align-items:center;justify-content:space-between;padding:18px 22px calc(env(safe-area-inset-bottom,0px) + 22px);background:#000}
+.cam-x{width:72px;border:0;background:none;color:#fff;font:600 16px/1 var(--head)}
+.cam-shot{width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:#fff;box-shadow:inset 0 0 0 3px #000}
+.cam-shot:active{transform:scale(.94)}
 .dthumb{border:0;padding:0;background:none;width:58px;height:58px;border-radius:12px;overflow:hidden;flex:none}
 .dthumb img{width:100%;height:100%;object-fit:cover;display:block;background:color-mix(in srgb,var(--ink) 8%,var(--surface))}
 .vbtn{width:100%;border:0;border-radius:14px;padding:13px;background:#008cff;color:#fff;font:700 16px/1.2 var(--head)}
@@ -1328,6 +1334,19 @@ async function deliverKey(key,hid,on,btn){
   if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()} // send right away
   if(on&&houseOrders(hid).every(y=>y.o.m.delivered)){toast('Delivered');closeSheet()}else openDelivery(hid);
   return true}
+// a camera view inside the app: returns a shrunk photo, 'cancel', or null when the camera can't open here
+function inAppCamera(){return new Promise(async res=>{
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false})}catch(e){return res(null)}
+  const bg=document.createElement('div');bg.className='cam';
+  bg.innerHTML='<video playsinline muted autoplay></video><div class="cam-bar"><button class="cam-x" aria-label="Cancel">Cancel</button><button class="cam-shot" aria-label="Take photo"></button><span style="width:72px"></span></div>';
+  document.body.appendChild(bg);const v=bg.querySelector('video');v.srcObject=stream;try{await v.play()}catch(e){}
+  const stop=()=>{stream.getTracks().forEach(t=>t.stop());bg.remove()};
+  bg.querySelector('.cam-x').onclick=()=>{stop();res('cancel')};
+  bg.querySelector('.cam-shot').onclick=()=>{const w=v.videoWidth,h=v.videoHeight;if(!w){return}
+    const k=Math.min(1,1000/Math.max(w,h));const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
+    c.getContext('2d').drawImage(v,0,0,c.width,c.height);let q=.62,url=c.toDataURL('image/jpeg',q);while(url.length>260000&&q>.3){q-=.08;url=c.toDataURL('image/jpeg',q)}
+    stop();res(url)};
+})}
 // the photo picker stays attached to the page while the camera is open (Android can lose a loose one)
 function pickPhoto(useCamera,onFile){
   const old=document.getElementById('photoPick');if(old)old.remove();
@@ -1368,16 +1387,20 @@ function openDelivery(hid){
     if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()}openDelivery(hid)}));
   sheet.querySelectorAll('[data-thumb]').forEach(img=>getPhoto(img.getAttribute('data-thumb')).then(u=>{if(u)img.src=u}));
   sheet.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{const x=list[+b.getAttribute('data-view')];getPhoto(x.key).then(u=>{if(!u)return toast('Photo not loaded yet');const bg=document.createElement('div');bg.className='modal-bg';bg.innerHTML='<div class="modal" style="padding:10px"><img src="'+u+'" alt="Delivery photo" style="width:100%;border-radius:14px;display:block"><p class="hint" style="margin:8px 4px">'+esc(addrOf(H[hid])||'')+(x.o.m.dBy?' \u00b7 by '+esc(x.o.m.dBy):'')+(x.o.m.photo?' \u00b7 '+new Date(x.o.m.photo).toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):'')+(x.o.m.pgeo?'<br>'+geoText(x.o.m.pgeo):'')+'</p><button class="btn" style="width:100%">Close</button></div>';document.body.appendChild(bg);bg.addEventListener('click',e=>{if(e.target===bg||e.target.closest('button'))bg.remove()})})}));
-  const takePhoto=(i,cam)=>{const x=list[i];const key=x.key;const where=cam?hereNow():Promise.resolve(null);
-    pickPhoto(cam,async f=>{toast('Saving photo...');
-      try{const url=await compressPhoto(f);const g=await Promise.race([where,new Promise(r=>setTimeout(()=>r(null),5000))]);
+  const takePhoto=async(i,cam)=>{const x=list[i];const key=x.key;const where=cam?hereNow():Promise.resolve(null);
+    const handle=async f=>{toast('Saving photo...');
+      try{const url=typeof f==='string'?f:await compressPhoto(f);const g=await Promise.race([where,new Promise(r=>setTimeout(()=>r(null),5000))]);
         const pg=g&&H[hid]?{d:Math.round(metersBetween(g,H[hid].c)),acc:Math.round(g.acc)}:null;
         await savePhoto(key,url,g);setMark(key,hid,{photo:Date.now(),pgeo:pg});
         const cur=mark(S.active,key)||{};
         // a photo means it was left at the door: mark it, then close the house
         if(!cur.delivered&&cur.how!=='pickup'){if(!cur.how)setMark(key,hid,{how:'door'});const ok=await deliverKey(key,hid,true,null);if(ok){closeSheet();toast('Photo saved, left at door')}}
         else{if(!cur.how)setMark(key,hid,{how:'door'});if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()}closeSheet();toast('Photo saved')}}
-      catch(e){console.warn(e);openDelivery(hid);toast(e&&e.message?e.message:'Could not save the photo')}})};
+      catch(e){console.warn(e);openDelivery(hid);toast(e&&e.message?e.message:'Could not save the photo')}};
+    // camera inside the app first, so the phone never switches away (and never restarts the app)
+    if(cam&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+      const r=await inAppCamera();if(r==='cancel')return;if(r){handle(r);return}}
+    pickPhoto(cam,handle)};
   sheet.querySelectorAll('[data-photo]').forEach(b=>b.addEventListener('click',()=>takePhoto(+b.getAttribute('data-photo'),true)));
   sheet.querySelectorAll('[data-gallery]').forEach(b=>b.addEventListener('click',()=>takePhoto(+b.getAttribute('data-gallery'),false)));
   sheet.querySelectorAll('[data-venmo]').forEach(b=>b.addEventListener('click',()=>{const x=list[+b.getAttribute('data-venmo')];showVenmo(x,hid,()=>openDelivery(hid))}));
