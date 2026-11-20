@@ -60,6 +60,8 @@ button{cursor:pointer}
 .banner .spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.banner .spin{animation:none}}
+.updpill{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;z-index:650;display:flex;gap:10px;align-items:center;border:0;background:#1c7ed6;color:#fff;font:600 15px/1 var(--body);padding:12px 18px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.3);white-space:nowrap;cursor:pointer}
+.updpill b{background:rgba(255,255,255,.22);padding:6px 10px;border-radius:999px}
 .toast{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;z-index:600;background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 4px 14px rgba(0,0,0,.25)}
 
 /* house labels */
@@ -304,6 +306,7 @@ textarea{min-height:84px;resize:vertical}
       </button>
     </div>
     <div class="toast" id="toast" hidden></div>
+    <button type="button" class="updpill" id="updPill" hidden>New version ready <b>Refresh</b></button>
     <section class="sheet" id="sheet" hidden aria-modal="false"></section>
   </div>
   <nav class="tabs" role="tablist">
@@ -414,7 +417,7 @@ function unitStats(hid){
 function unitHeat(hid){const h=H[hid];let s=0;for(const u of h.u)s+=heatCount(hid+'|'+u);return s/(h.u.length*shown().length)}
 function money(n){n=Math.round((+n||0)*100)/100;return'$'+n.toLocaleString('en-US',{minimumFractionDigits:n%1?2:0,maximumFractionDigits:2})}
 function parseAmt(v){const n=parseFloat(String(v).replace(/[^0-9.]/g,''));return isNaN(n)?0:Math.round(n*100)/100}
-function seasonTotals(sid){let sale=0,don=0,unpaid=0;const m=S.marks[sid]||{};for(const k in m){const a=+m[k].sale||0,d=+m[k].don||0;sale+=a;don+=d;if(!m[k].paid)unpaid+=a+d}return{sale,don,total:sale+don,unpaid}}
+function seasonTotals(sid){let sale=0,don=0,unpaid=0,unpaidSale=0;const m=S.marks[sid]||{};for(const k in m){const a=+m[k].sale||0,d=+m[k].don||0;sale+=a;don+=d;if(!m[k].paid){unpaid+=a+d;unpaidSale+=a}}return{sale,don,total:sale+don,unpaid,unpaidSale}}
 // a door owes money when it bought or gave something but Paid is still off
 function needsPay(key){const m=mark(S.active,key);return!!(m&&!m.paid&&(((+m.sale||0)+(+m.don||0))>0||m.st==='yes'))}
 // gold star: sales or donation over $100 in any season
@@ -803,6 +806,14 @@ function renderTop(){
   const se=seasonById(S.active);$('#seasonPill').textContent=(se?se.name:'Season')+(heatOn()?' + '+(shown().length-1):'');
   renderTally();
 }
+const TB_DEF={sale:true,unpaid:true,don:true,total:true};
+let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
+let pageSig=null;
+async function pageSignature(){const r=await fetch(location.pathname+'?v='+Date.now(),{cache:'no-store'});if(!r.ok)throw 0;const t=await r.text();let h=0;for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return h}
+async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine)return;try{const sig=await pageSignature();if(pageSig===null){pageSig=sig;return}if(sig!==pageSig)$('#updPill').hidden=false}catch(e){}}
+setTimeout(checkUpdate,3000);setInterval(checkUpdate,5*60000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(checkUpdate,1500)});
+function saveTB(){try{localStorage.setItem('sdm.topbar',JSON.stringify(TB))}catch(e){}}
 function renderTally(){
   const m=S.marks[S.active]||{};
   if(S.deliver){let todo=0,done=0;const left={};const prods=prodsFor(S.active);
@@ -812,8 +823,8 @@ function renderTally(){
   let paid=0,unpaid=0;for(const id in m){if(m[id].paid)paid++;else if(needsPay(id))unpaid++}
   const t=seasonTotals(S.active);
   let kid='';if(S.lastSeller){let ks=0,kd=0,ky=0;for(const k in m){if(m[k].seller!==S.lastSeller||!H[k.split('|')[0]])continue;ks+=+m[k].sale||0;kd+=+m[k].don||0;if(m[k].st==='yes')ky++}
-    kid='<span class="kid">'+esc(S.lastSeller)+': Sales <b>'+money(ks)+'</b> \u00b7 Donated <b>'+money(kd)+'</b> \u00b7 Total <b>'+money(ks+kd)+'</b> \u00b7 '+ky+' yes</span>'}
-  $('#money').innerHTML=kid+'<span>Sales <b>'+money(t.sale)+'</b></span>'+(t.unpaid?'<span class="unp">Not paid <b>'+money(t.unpaid)+'</b></span>':'')+'<span>Donations <b>'+money(t.don)+'</b></span><span class="gt">Total <b>'+money(t.total)+'</b></span>';
+    kid='<span class="kid">'+esc(S.lastSeller)+': '+[TB.sale?'Sales <b>'+money(ks)+'</b>':'',TB.don?'Donated <b>'+money(kd)+'</b>':'',TB.total?'Total <b>'+money(TB.don?ks+kd:ks)+'</b>':'',ky+' yes'].filter(Boolean).join(' \u00b7 ')+'</span>'}
+  $('#money').innerHTML=kid+(TB.sale?'<span>Sales <b>'+money(t.sale)+'</b></span>':'')+(TB.unpaid&&(TB.don?t.unpaid:t.unpaidSale)?'<span class="unp">Not paid <b>'+money(TB.don?t.unpaid:t.unpaidSale)+'</b></span>':'')+(TB.don?'<span>Donations <b>'+money(t.don)+'</b></span>':'')+(TB.total?'<span class="gt">Total <b>'+money(TB.don?t.total:t.total-t.don)+'</b></span>':'');
   $('#tally').innerHTML=S.statuses.map(s=>'<span class="tchip"><i style="background:'+s.color+'"></i>'+esc(s.label)+' <b>'+(cnt[s.id]||0)+'</b></span>').join('')+'<span class="tchip">Paid <b>'+paid+'</b></span>'+(unpaid?'<span class="tchip warn">Not paid <b>'+unpaid+'</b></span>':'');
 }
 $('#seasonPill').addEventListener('click',()=>selectTab('seasons'));
@@ -1123,6 +1134,9 @@ function openSettings(){
   openSheet(
     '<div class="sh-head"><div class="sh-title"><h2>Settings</h2><p>Your status buttons and backups.</p></div>'+X+'</div>'+
     '<div class="sh-body">'+
+      '<div><p class="label">Top bar shows</p><p class="hint" style="margin-bottom:8px">Only changes this phone. Handy before showing the app to someone. With Donations off, Total counts sales only.</p><div class="list">'+
+        [['sale','Sales'],['unpaid','Not paid'],['don','Donations'],['total','Total']].map(([k,l])=>'<div class="li"><div class="nm">'+l+'</div><label class="switch"><input type="checkbox" data-tb="'+k+'" aria-label="Show '+l+' in the top bar"'+(TB[k]?' checked':'')+'><span></span></label></div>').join('')+
+      '</div></div>'+
       '<div><p class="label">Status buttons</p><p class="hint" style="margin-bottom:8px">Left color is the box. Right color is the dot that shows this status from past seasons.</p><div class="list" id="stList">'+
         S.statuses.map((s,i)=>'<div class="st-row" data-i="'+i+'"><input type="color" value="'+esc(s.color)+'" aria-label="Box color for '+esc(s.label)+'" title="Box color" data-color><input type="text" value="'+esc(s.label)+'" aria-label="Name" data-label><input type="color" value="'+esc(dotColor(s))+'" aria-label="Past season dot color for '+esc(s.label)+'" title="Dot color" data-dot>'+
           '<button class="icon-btn" data-up aria-label="Move up"'+(i===0?' disabled style="opacity:.3"':'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg></button>'+
@@ -1149,6 +1163,7 @@ function openSettings(){
       if(!await confirmBox(used?'Delete "'+s.label+'"? '+used+' marked door'+(used===1?'':'s')+' will go back to unmarked. Notes stay.':'Delete "'+s.label+'"?','Delete'))return;
       for(const sid in S.marks)for(const h in S.marks[sid])if(S.marks[sid][h].st===s.id)S.marks[sid][h].st=null;
       S.statuses.splice(i,1);if(S.heat.status===s.id)S.heat.status=S.statuses[0].id;saveS();restyleAll();openSettings()}});
+  sheet.querySelectorAll('[data-tb]').forEach(i=>i.addEventListener('change',()=>{TB[i.getAttribute('data-tb')]=i.checked;saveTB();renderTally()}));
   sheet.querySelector('#addSt').addEventListener('click',()=>{const pal=['#7048e8','#d6336c','#0ca678','#e8590c','#3bc9db','#495057'];S.statuses.push({id:'st'+Date.now().toString(36),label:'New status',color:pal[S.statuses.length%pal.length]});saveS();renderTally();openSettings();const ins=sheet.querySelectorAll('[data-label]');const last=ins[ins.length-1];last.focus();last.select()});
   sheet.querySelector('#exp').addEventListener('click',exportBackup);
   sheet.querySelector('#rcName').addEventListener('change',e=>{S.packName=e.target.value.trim();saveS();toast('Saved')});
@@ -1504,6 +1519,7 @@ renderTop();drawHouses();drawLabels();wantTiles();renderSafe();initSync();
 if(isWebsite&&'serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 if(!Object.keys(H).length){setBanner('Zoom in on your street and tap a house to mark it.');setTimeout(()=>setBanner(null),6000)}
 })();
+document.getElementById('updPill').addEventListener('click',()=>{const p=document.getElementById('updPill');p.textContent='Updating...';if(navigator.serviceWorker&&navigator.serviceWorker.controller){navigator.serviceWorker.getRegistration().then(r=>r&&r.update()).finally(()=>location.reload())}else location.reload()});
 </script>
 </body>
 </html>
