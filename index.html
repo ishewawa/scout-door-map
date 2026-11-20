@@ -398,7 +398,12 @@ function shown(){ // seasons in play for combined views: active plus toggled
   const ids=new Set(S.show.filter(id=>seasonById(id)));ids.add(S.active);
   return S.seasons.filter(s=>ids.has(s.id)).map(s=>s.id);
 }
-function heatCount(key){let n=0;for(const sid of shown()){const m=mark(sid,key);if(m&&m.st===S.heat.status)n++}return n}
+function heatInfo(key){
+  if(S.heat.status!=='all'){let n=0;for(const sid of shown()){const m=mark(sid,key);if(m&&m.st===S.heat.status)n++}return{st:statusById(S.heat.status),n}}
+  const c={},last={};let i=0;for(const sid of shown()){i++;const m=mark(sid,key);if(m&&m.st&&statusById(m.st)){c[m.st]=(c[m.st]||0)+1;last[m.st]=i}}
+  let best=null;for(const k in c)if(!best||c[k]>c[best]||(c[k]===c[best]&&last[k]>last[best]))best=k;
+  return best?{st:statusById(best),n:c[best]}:{st:null,n:0}}
+function heatCount(key){return heatInfo(key).n}
 const hasUnits=h=>h&&h.u&&h.u.length>0;
 function unitStats(hid){
   const h=H[hid],m=S.marks[S.active]||{},cnt={};let marked=0;
@@ -492,7 +497,7 @@ function copyText(t){const ok=()=>toast('Receipt copied');
   function fallback(){const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');ok()}catch(e){toast('Could not copy on this phone')}ta.remove()}}
 function pastPhone(key){const order=S.seasons.slice().reverse();for(const se of order){if(se.id===S.active)continue;const m=(S.marks[se.id]||{})[key];if(m&&m.phone)return{phone:m.phone,season:se.name}}return null}
 function knockText(n){return 'Knocked '+n+' time'+(n===1?'':'s')+', nobody home'}
-function heatOn(){return S.heat.on && shown().length>1 && statusById(S.heat.status)}
+function heatOn(){return S.heat.on && shown().length>1 && (S.heat.status==='all'||!!statusById(S.heat.status))}
 
 /* ---------- map ---------- */
 const map=L.map('map',{zoomControl:false,attributionControl:false,preferCanvas:true,maxZoom:21}).setView(S.view.c,S.view.z);
@@ -517,7 +522,7 @@ function styleFor(hid){
   if(h.multi&&!hasUnits(h))return{color:outline,weight:1.5,opacity:.7,dashArray:'4 4',fillColor:box,fillOpacity:.1};
   if(hasUnits(h))return{color:sel?cssv('--accent'):outline,weight:sel?3.5:2.4,opacity:.95,fillColor:box,fillOpacity:.05};
   if(heatOn()){
-    const st=statusById(S.heat.status), n=heatCount(hid), tot=shown().length;
+    const hi=heatInfo(hid),st=hi.st,n=hi.n,tot=shown().length;
     if(!n) return{color:outline,weight:sel?3.5:1,opacity:.55,fillColor:box,fillOpacity:.08};
     const f=n/tot;
     return{color:sel?cssv('--accent'):st.color,weight:sel?3.5:1.5,opacity:1,fillColor:shadeColor(st.color,f),fillOpacity:.25+.7*f};
@@ -562,7 +567,7 @@ function sliceRects(h){
 function sliceStyle(hid,u){
   const outline=cssv('--outline'),box=cssv('--box'),key=hid+'|'+u;
   if(S.deliver){const o=orderOf(key);const st=delStyle(o?[{o}]:[],false);st.weight=1;st.color=outline;return st}
-  if(heatOn()){const st=statusById(S.heat.status),n=heatCount(key),tot=shown().length;
+  if(heatOn()){const hi=heatInfo(key),st=hi.st,n=hi.n,tot=shown().length;
     if(!n)return{color:outline,weight:1,opacity:.7,fillColor:box,fillOpacity:.08};
     const f=n/tot;return{color:outline,weight:1,opacity:.9,fillColor:shadeColor(st.color,f),fillOpacity:.25+.7*f}}
   const m=mark(S.active,key),st=m&&statusById(m.st);
@@ -1060,9 +1065,10 @@ function openSeasons(){
     return '<div class="li"><div class="nm">'+esc(s.name)+'<small>'+n+' door'+(n===1?'':'s')+' marked</small><span class="money-line">Sales '+money(t.sale)+' · Donations '+money(t.don)+' · Total '+money(t.total)+'</span></div>'+
       (act?'<span class="tag">Editing</span>':'<button class="btn small" data-edit="'+s.id+'">Edit this one</button>')+
       '<label class="switch" title="Show on map"><input type="checkbox" data-show="'+s.id+'" aria-label="Show '+esc(s.name)+' on map"'+(act||S.show.includes(s.id)?' checked':'')+(act?' disabled':'')+'><span></span></label></div>'}).join('');
-  const st=statusById(S.heat.status)||S.statuses[0];
+  const heatAll=S.heat.status==='all';const st=heatAll?null:(statusById(S.heat.status)||S.statuses[0]);
   const tot=shown().length;
-  let ramp='';for(let i=1;i<=Math.max(tot,1);i++)ramp+='<i style="background:'+shadeColor(st.color,i/Math.max(tot,1))+';opacity:'+(.25+.7*i/Math.max(tot,1))+'"></i>';
+  const rampFor=c=>{let r='';for(let i=1;i<=Math.max(tot,1);i++)r+='<i style="background:'+shadeColor(c,i/Math.max(tot,1))+';opacity:'+(.25+.7*i/Math.max(tot,1))+'"></i>';return r};
+  const ramp=heatAll?'':rampFor(st.color);
   openSheet(
     '<div class="sh-head"><div class="sh-title"><h2>Seasons</h2><p>Each sales season is its own map layer.</p></div>'+X+'</div>'+
     '<div class="sh-body">'+
@@ -1083,9 +1089,10 @@ function openSeasons(){
       (()=>{const m=S.marks[S.active]||{};const cb=Object.keys(m).filter(k=>m[k].st==='comeback'&&H[k.split('|')[0]]).map(k=>({k,hid:k.split('|')[0],unit:k.split('|')[1],back:m[k].back||''}));
         if(!cb.length)return'';cb.sort((a,b)=>(a.back?0:1)-(b.back?0:1)||a.back.localeCompare(b.back));
         return '<div><p class="label">Come back list</p><div class="list cblist">'+cb.map(x=>'<button type="button" data-cb="'+esc(x.hid)+'"><b>'+(x.back?esc(fmtBack(x.back)):'No time set')+'</b><span>'+esc(addrOf(H[x.hid])||'House')+(x.unit?' unit '+esc(x.unit):'')+'</span></button>').join('')+'</div></div>'})()+
-      '<div class="heatbox"><div class="row"><div style="flex:1"><b>Combine shown seasons</b><div class="hint">Houses get darker for each season they landed on one status.</div></div><label class="switch"><input type="checkbox" id="heatOn" aria-label="Combine shown seasons"'+(S.heat.on?' checked':'')+'><span></span></label></div>'+
-        '<div class="row"><label for="heatSt" class="muted" style="flex:none">Status</label><select id="heatSt">'+S.statuses.map(s=>'<option value="'+esc(s.id)+'"'+(s.id===st.id?' selected':'')+'>'+esc(s.label)+'</option>').join('')+'</select></div>'+
-        '<div><div class="ramp">'+ramp+'</div><div class="ramp-lab"><span>1 season</span><span>'+tot+' of '+tot+' seasons</span></div></div>'+
+      '<div class="heatbox"><div class="row"><div style="flex:1"><b>Combine shown seasons</b><div class="hint">'+(heatAll?'Each house shows the status it landed on most. Darker means it landed there more seasons.':'Houses get darker for each season they landed on one status.')+'</div></div><label class="switch"><input type="checkbox" id="heatOn" aria-label="Combine shown seasons"'+(S.heat.on?' checked':'')+'><span></span></label></div>'+
+        '<div class="row"><label for="heatSt" class="muted" style="flex:none">Status</label><select id="heatSt"><option value="all"'+(heatAll?' selected':'')+'>All statuses</option>'+S.statuses.map(s=>'<option value="'+esc(s.id)+'"'+(!heatAll&&s.id===st.id?' selected':'')+'>'+esc(s.label)+'</option>').join('')+'</select></div>'+
+        (heatAll?S.statuses.map(s=>'<div class="row" style="gap:10px"><span class="muted" style="flex:0 0 38%;font-size:13px">'+esc(s.label)+'</span><div class="ramp" style="flex:1">'+rampFor(s.color)+'</div></div>').join('')+'<div class="ramp-lab" style="padding-left:calc(38% + 10px)"><span>1 season</span><span>'+tot+' of '+tot+'</span></div>'
+          :'<div><div class="ramp">'+ramp+'</div><div class="ramp-lab"><span>1 season</span><span>'+tot+' of '+tot+' seasons</span></div></div>')+
         (tot<2?'<p class="hint">Switch on at least one past season above to combine.</p>':'')+
       '</div>'+
       '<div><button class="btn primary" id="csvBtn">Export '+esc((seasonById(S.active)||{}).name||'')+' orders as CSV</button><p class="hint" style="margin-top:8px">Item totals on top, then each house with what they ordered and whether they paid.</p></div>'+
