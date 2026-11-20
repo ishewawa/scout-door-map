@@ -97,6 +97,7 @@ button{cursor:pointer}
 .dl .u{color:#555;font-weight:700;margin-right:3px}
 .dl .due{color:#c92a2a;font-weight:800}
 .dl.done{border-color:#adb5bd;opacity:.6}
+.dl.owe{border-color:#e03131;border-width:3px}.dl.done.owe{opacity:.85}
 .dl.done .a::after{content:" \2713";color:#2f9e44}
 .fab.truck.on{background:#ffb300;color:#2a1f00;border-color:#ffb300}
 .dcard{border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
@@ -167,7 +168,10 @@ body.helper .tally .tchip:not(.warn){opacity:.9}
 .tour-dots{display:flex;gap:5px}.tour-dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}.tour-dots i.on{background:var(--accent)}
 .tour-skip{border:0;background:none;color:var(--muted);font-weight:600;padding:8px 4px}
 @media (prefers-reduced-motion:reduce){.tour-ring{transition:none}}
-.dhow{margin-top:8px;grid-template-columns:1fr 1fr}.dhow .chip{min-height:44px;justify-content:center;font-size:14px}
+.dhow{margin-top:8px;grid-template-columns:1fr 1fr}.dhow .pkchip{grid-column:1/-1}
+.tchip.pk{border:0;background:#7048e8;color:#fff;cursor:pointer}
+.dl.pk{border:2px solid #7048e8;background:#f1ecff}.dl.pk.owe{border-color:#e03131;border-width:3px}
+.tchip.dv{background:#ffb300;color:#2b1d00}.tchip.dv b{color:#2b1d00}.dl .pktag{display:block;font-size:11px;font-weight:700;color:#7048e8}.dhow .chip{min-height:44px;justify-content:center;font-size:14px}
 .dphoto{margin-top:8px;align-items:center}.dphoto .btn{flex:1}
 .dthumb{border:0;padding:0;background:none;width:58px;height:58px;border-radius:12px;overflow:hidden;flex:none}
 .dthumb img{width:100%;height:100%;object-fit:cover;display:block;background:color-mix(in srgb,var(--ink) 8%,var(--surface))}
@@ -587,8 +591,12 @@ function houseOrders(hid){const h=H[hid];if(!h||h.x)return[];if(hasUnits(h)){con
   const o=orderOf(hid);return o?[{u:null,key:hid,o}]:[]}
 function delStyle(list,sel){
   if(!list.length)return{color:cssv('--outline'),weight:sel?3.5:1,opacity:.35,fillColor:cssv('--box'),fillOpacity:.06};
-  if(list.every(x=>x.o.m.delivered))return{color:sel?cssv('--accent'):'#868e96',weight:sel?3.5:1.5,opacity:.9,fillColor:'#adb5bd',fillOpacity:.45};
-  return{color:sel?cssv('--accent'):'#b35c00',weight:sel?3.5:2.5,opacity:1,fillColor:'#ffb300',fillOpacity:.9};
+  // amber = to deliver, purple = they will pick up, red edge = still owes money
+  const owes=list.some(x=>!x.o.m.paid&&x.o.due>0);
+  if(list.every(x=>x.o.m.delivered))return{color:sel?cssv('--accent'):(owes?'#e03131':'#868e96'),weight:sel?3.5:(owes?3:1.5),opacity:.9,fillColor:'#adb5bd',fillOpacity:.45};
+  const pk=list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');
+  if(pk)return{color:sel?cssv('--accent'):(owes?'#e03131':'#5f3dc4'),weight:sel?3.5:(owes?4:2.5),opacity:1,fillColor:'#9775fa',fillOpacity:.85};
+  return{color:sel?cssv('--accent'):(owes?'#e03131':'#b35c00'),weight:sel?3.5:(owes?4:2.5),opacity:1,fillColor:'#ffb300',fillOpacity:.9};
 }
 // come back times and receipts
 function fmtBack(v){if(!v)return'';const d=new Date(v);if(isNaN(d))return'';return d.toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'})}
@@ -731,8 +739,8 @@ function drawHouses(){
 function drawDeliveryLabels(){
   if(map.getZoom()<16)return;const b=map.getBounds().pad(.1);const full=map.getZoom()>=18;
   for(const id in H){const h=H[id];if(!inView(b,h))continue;const list=houseOrders(id);if(!list.length)continue;
-    const done=list.every(x=>x.o.m.delivered);let n=0,due=0;
-    let html='<div class="dl'+(done?' done':'')+'"><span class="a">'+esc(h.n||'?')+'</span>';
+    const owe=list.some(x=>!x.o.m.paid&&x.o.due>0);const done=list.every(x=>x.o.m.delivered);const pk=!done&&list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');let n=0,due=0;
+    let html='<div class="dl'+(done?' done':'')+(pk?' pk':'')+(owe?' owe':'')+'">'+(pk?'<span class="pktag">\ud83d\udce6 Pickup</span>':'')+'<span class="a">'+esc(h.n||'?')+'</span>';
     for(const x of list){due+=x.o.due;for(const it of x.o.items)n+=it.q;
       if(full){const parts=x.o.items.map(it=>'<b>'+it.q+'</b> '+esc(pcode(it.p)));if(x.o.legacy)parts.push(money(x.o.legacy)+' order');
         html+='<span class="ln">'+(x.u?'<span class="u">'+esc(x.short)+(x.o.m.delivered?' \u2713':'')+'</span>':'')+parts.join(' \u00b7 ')+'</span>'}}
@@ -943,9 +951,9 @@ function hideDonSt(id){if(TB.don||!id)return false;const st=statusById(id);retur
 function saveTB(){try{localStorage.setItem('sdm.topbar',JSON.stringify(TB))}catch(e){}}
 function renderTally(){
   const m=S.marks[S.active]||{};
-  if(S.deliver){let todo=0,done=0;const left={};const prods=prodsFor(S.active);
-    for(const k in m){const hid=k.split('|')[0];if(!H[hid]||H[hid].x)continue;const o=orderOf(k);if(!o)continue;if(m[k].delivered){done++;continue}todo++;for(const it of o.items)left[it.p.id]=(left[it.p.id]||0)+it.q}
-    $('#tally').innerHTML='<button type="button" class="tchip share" id="shareRoute">\u2197 Share route</button><span class="tchip warn">To deliver <b>'+todo+'</b></span><span class="tchip">Delivered <b>'+done+'</b></span>'+prods.filter(p=>left[p.id]).map(p=>'<span class="tchip">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></span>').join('');
+  if(S.deliver){let todo=0,done=0,pick=0;const left={};const prods=prodsFor(S.active);
+    for(const k in m){const hid=k.split('|')[0];if(!H[hid]||H[hid].x)continue;const o=orderOf(k);if(!o)continue;if(m[k].delivered){done++;continue}if(m[k].how==='pickup'){pick++;continue}todo++;for(const it of o.items)left[it.p.id]=(left[it.p.id]||0)+it.q}
+    $('#tally').innerHTML='<button type="button" class="tchip share" id="shareRoute">\u2197 Share route</button><span class="tchip dv">To deliver <b>'+todo+'</b></span>'+(pick?'<button type="button" class="tchip pk" id="pickupList">\ud83d\udce6 Pickup <b>'+pick+'</b></button>':'')+'<span class="tchip">Delivered <b>'+done+'</b></span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #e03131 inset"></i>Red edge: owes</span>'+prods.filter(p=>left[p.id]).map(p=>'<span class="tchip">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></span>').join('');
     const t=seasonTotals(S.active);$('#money').innerHTML='<span>Delivery mode</span>'+(t.unpaid?'<span class="unp">Still to collect <b>'+money(t.unpaid)+'</b></span>':'<span>All paid</span>');return}const cnt={};for(const id in m){const st=m[id].st;if(st)cnt[st]=(cnt[st]||0)+1}
   let paid=0,unpaid=0;for(const id in m){if(m[id].paid)paid++;else if(needsPay(id))unpaid++}
   const t=seasonTotals(S.active);
@@ -1163,7 +1171,7 @@ function openBuilding(hid,editNumber){
 function routeStops(scope){
   const b=map.getBounds();const out=[];
   for(const hid in H){const h=H[hid];if(!h||h.x||!h.c)continue;if(scope==='screen'&&!b.contains(h.c))continue;
-    const list=houseOrders(hid).filter(x=>!x.o.m.delivered);if(list.length)out.push({hid,h,list})}
+    const list=houseOrders(hid).filter(x=>!x.o.m.delivered&&x.o.m.how!=='pickup');if(list.length)out.push({hid,h,list})}
   // nearest next stop, starting from the middle of the map
   const ordered=[];let cur=map.getCenter();cur=[cur.lat,cur.lng];const left=out.slice();
   const d=(a,c)=>{const k=Math.cos(a[0]*Math.PI/180);return (a[0]-c[0])**2+((a[1]-c[1])*k)**2};
@@ -1205,7 +1213,17 @@ function openShareRoute(){
   q('#rtCopy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(q('#rtText').value);toast('Copied. Paste it in a text.')}catch(e){q('#rtText').select();toast('Press and hold to copy.')}});
   build();
 }
-document.getElementById('tally').addEventListener('click',e=>{if(e.target.closest('#shareRoute'))openShareRoute()});
+document.getElementById('tally').addEventListener('click',e=>{if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
+function openPickups(){
+  sheetKind='pickups';const m=S.marks[S.active]||{};const rows=[];
+  for(const k in m){const hid=k.split('|')[0];if(!H[hid]||m[k].delivered||m[k].how!=='pickup')continue;const o=orderOf(k);if(!o)continue;
+    rows.push({hid,u:k.split('|')[1],o,a:addrOf(H[hid])||'House with no number'})}
+  rows.sort((a,b)=>a.a.localeCompare(b.a,undefined,{numeric:true}));
+  openSheet('<div class="sh-head"><div class="sh-title"><h2>Will pick up</h2><p>'+rows.length+' order'+(rows.length===1?'':'s')+' to keep aside at home</p></div>'+X+'</div><div class="sh-body"><div class="list cblist">'+
+    rows.map(r=>'<button type="button" data-cb="'+esc(r.hid)+'"><b>'+esc(r.a)+(r.u?' unit '+esc(r.u):'')+'</b><span>'+r.o.items.map(it=>it.q+' '+esc(pcode(it.p))).join(', ')+(r.o.due?' \u00b7 '+money(r.o.due)+' due':'')+'</span></button>').join('')+
+    '</div><p class="hint">When they come get it, open the house and tap They picked it up.</p></div>');
+  sheet.querySelectorAll('[data-cb]').forEach(b=>b.addEventListener('click',()=>{closeSheet();goToHouse(b.getAttribute('data-cb'))}));
+}
 // ask the account directly for one door's latest record (used before marking delivered)
 async function serverMark(key){
   try{const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),6000);
@@ -1304,8 +1322,8 @@ function openDelivery(hid){
       (m.paid?'<div class="dpay ok">Paid'+(by?' by '+esc(by):'')+'</div>':'<div class="dpay due">Not paid: '+money(x.o.due)+' due</div>'+(S.venmo&&x.o.due?'<button class="vbtn" data-venmo="'+i+'">Show Venmo QR for '+money(x.o.due)+'</button>':'')+'<div class="row" style="flex-wrap:wrap">'+['Cash','Check','Venmo'].map(w=>'<button class="btn small" data-paid="'+i+'" data-w="'+w.toLowerCase()+'">Paid by '+w+'</button>').join('')+'</div>')+
       (m.note?'<div class="hint">'+esc(m.note)+'</div>':'')+
       (i===0?'<a class="btn" style="text-align:center;text-decoration:none" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+h.c[0]+','+h.c[1]+'">Navigate in Google Maps</a>':'')+
-      '<button class="big-btn'+(m.delivered?' undo':'')+'" data-dlv="'+i+'">'+(m.delivered?'Delivered \u2713'+(m.dBy?' by '+esc(m.dBy):'')+(m.dAt?' at '+new Date(m.dAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):'')+(m.how==='door'?', left at door':m.how==='person'?', handed to someone':'')+' (tap to undo)':'Mark delivered')+'</button>'+
-      '<div class="chips dhow" role="group" aria-label="How it was delivered"><button class="chip" data-how="door" data-i="'+i+'" aria-pressed="'+(m.how==='door')+'">\ud83d\udeaa Left at door</button><button class="chip" data-how="person" data-i="'+i+'" aria-pressed="'+(m.how==='person')+'">\ud83e\udd1d Handed to someone</button></div>'+
+      '<button class="big-btn'+(m.delivered?' undo':'')+'" data-dlv="'+i+'">'+(m.delivered?'Delivered \u2713'+(m.dBy?' by '+esc(m.dBy):'')+(m.dAt?' at '+new Date(m.dAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):'')+(m.how==='door'?', left at door':m.how==='person'?', handed to someone':m.how==='pickup'?', picked up':'')+' (tap to undo)':(m.how==='pickup'?'They picked it up':'Mark delivered'))+'</button>'+
+      '<div class="chips dhow" role="group" aria-label="How it was delivered"><button class="chip" data-how="door" data-i="'+i+'" aria-pressed="'+(m.how==='door')+'">\ud83d\udeaa Left at door</button><button class="chip" data-how="person" data-i="'+i+'" aria-pressed="'+(m.how==='person')+'">\ud83e\udd1d Handed to someone</button><button class="chip pkchip" data-how="pickup" data-i="'+i+'" aria-pressed="'+(m.how==='pickup')+'">\ud83d\udce6 Will pick up from us</button></div>'+
       '<div class="row dphoto"><button class="btn" data-photo="'+i+'">\ud83d\udcf7 '+(m.photo?'Retake photo':(m.delivered?'Add photo':'Photo + mark delivered'))+'</button>'+(m.photo?'<button class="dthumb" data-view="'+i+'" aria-label="See delivery photo"><img alt="" data-thumb="'+esc(x.key)+'"></button>':'')+'</div></div>'});
   openSheet('<div class="sh-head"><div class="sh-title"><h2>'+esc(addrOf(h)||'House')+'</h2><p>Delivery for '+esc((seasonById(S.active)||{}).name||'')+'</p></div>'+X+'</div>'+
     '<div class="sh-body">'+html+'<button class="btn" id="dFull">Open full details</button></div>',list.length>1);
@@ -1320,7 +1338,7 @@ function openDelivery(hid){
     if(on&&houseOrders(hid).every(y=>y.o.m.delivered)){toast('Delivered');closeSheet()}else openDelivery(hid)}));
   sheet.querySelectorAll('[data-how]').forEach(b=>b.addEventListener('click',()=>{const i=+b.getAttribute('data-i');const x=list[i];const v=b.getAttribute('data-how');const nv=x.o.m.how===v?null:v;
     setMark(x.key,hid,{how:nv});
-    if(nv&&!x.o.m.delivered){const db=sheet.querySelector('[data-dlv="'+i+'"]');if(db){db.click();return}}
+    if(nv&&nv!=='pickup'&&!x.o.m.delivered){const db=sheet.querySelector('[data-dlv="'+i+'"]');if(db){db.click();return}}
     if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()}openDelivery(hid)}));
   sheet.querySelectorAll('[data-thumb]').forEach(img=>getPhoto(img.getAttribute('data-thumb')).then(u=>{if(u)img.src=u}));
   sheet.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{const x=list[+b.getAttribute('data-view')];getPhoto(x.key).then(u=>{if(!u)return toast('Photo not loaded yet');const bg=document.createElement('div');bg.className='modal-bg';bg.innerHTML='<div class="modal" style="padding:10px"><img src="'+u+'" alt="Delivery photo" style="width:100%;border-radius:14px;display:block"><p class="hint" style="margin:8px 4px">'+esc(addrOf(H[hid])||'')+(x.o.m.dBy?' \u00b7 by '+esc(x.o.m.dBy):'')+(x.o.m.photo?' \u00b7 '+new Date(x.o.m.photo).toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):'')+'</p><button class="btn" style="width:100%">Close</button></div>';document.body.appendChild(bg);bg.addEventListener('click',e=>{if(e.target===bg||e.target.closest('button'))bg.remove()})})}));
