@@ -1337,21 +1337,49 @@ async function deliverKey(key,hid,on,btn){
   if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()} // send right away
   if(on&&houseOrders(hid).every(y=>y.o.m.delivered)){toast('Delivered');closeSheet()}else openDelivery(hid);
   return true}
+// draws the picture and, if it came out dark, brightens it so the porch is visible
+function brightDraw(c,src){const g=c.getContext('2d');g.drawImage(src,0,0,c.width,c.height);
+  try{const sw=48,sh=Math.max(1,Math.round(48*c.height/c.width));const t=document.createElement('canvas');t.width=sw;t.height=sh;const tg=t.getContext('2d');tg.drawImage(c,0,0,sw,sh);
+    const d=tg.getImageData(0,0,sw,sh).data;let sum=0;for(let i=0;i<d.length;i+=4)sum+=.2126*d[i]+.7152*d[i+1]+.0722*d[i+2];const avg=sum/(d.length/4);
+    if(avg<95){const gain=Math.min(3.2,110/Math.max(avg,12));g.filter='brightness('+gain.toFixed(2)+') contrast(1.08)';g.drawImage(src,0,0,c.width,c.height);g.filter='none'}}catch(e){}}
 // a camera view inside the app: returns a shrunk photo, 'cancel', or null when the camera can't open here
 function inAppCamera(){return new Promise(async res=>{
   let stream;try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false})}catch(e){return res(null)}
   const bg=document.createElement('div');bg.className='cam';
   bg.innerHTML='<video playsinline muted autoplay></video><div class="cam-bar"><button class="cam-x" aria-label="Cancel">Cancel</button><button class="cam-shot" aria-label="Take photo"></button><button class="cam-flash" aria-label="Flash" aria-pressed="false" hidden>\u26a1 Flash</button></div>';
   document.body.appendChild(bg);const v=bg.querySelector('video');v.srcObject=stream;try{await v.play()}catch(e){}
-  // flash: turns the phone light on while aiming (remembered for next time)
-  const track=stream.getVideoTracks()[0];const fb=bg.querySelector('.cam-flash');
-  const setTorch=async on=>{try{await track.applyConstraints({advanced:[{torch:on}]});fb.setAttribute('aria-pressed',String(on));fb.classList.toggle('on',on);try{localStorage.setItem('sdm.flash',on?'1':'')}catch(e){}}catch(e){if(on)toast('This phone does not allow the light here')}};
-  try{const caps=track.getCapabilities?track.getCapabilities():{};if(caps.torch){fb.hidden=false;fb.onclick=()=>setTorch(fb.getAttribute('aria-pressed')!=='true');let pref='';try{pref=localStorage.getItem('sdm.flash')}catch(e){}if(pref)setTorch(true)}}catch(e){}
-  const stop=()=>{try{track.applyConstraints({advanced:[{torch:false}]}).catch(()=>{})}catch(e){}stream.getTracks().forEach(t=>t.stop());bg.remove()};
+  // flash: turns the phone light on while aiming (remembered). Phones with several back lenses only light up on one, so try each.
+  let track=stream.getVideoTracks()[0];const fb=bg.querySelector('.cam-flash');fb.hidden=false;
+  const hasTorch=t=>{try{return !!(t.getCapabilities&&t.getCapabilities().torch)}catch(e){return false}};
+  const lightOn=async on=>{await track.applyConstraints({advanced:[{torch:on}]});fb.setAttribute('aria-pressed',String(on));fb.classList.toggle('on',on);try{localStorage.setItem('sdm.flash',on?'1':'')}catch(e){}};
+  const findTorch=async()=>{
+    for(let k=0;k<6&&!hasTorch(track);k++)await new Promise(r=>setTimeout(r,250)); // some phones report the light a moment late
+    if(hasTorch(track))return true;
+    let cams=[];try{cams=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput')}catch(e){}
+    const cur=track.getSettings?track.getSettings().deviceId:'';
+    cams.sort((a,b)=>(/back|rear|environment/i.test(b.label)?1:0)-(/back|rear|environment/i.test(a.label)?1:0));
+    for(const d of cams){if(d.deviceId===cur)continue;let st=null;
+      try{track.stop();st=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:d.deviceId},width:{ideal:1920},height:{ideal:1080}},audio:false})}catch(e){continue}
+      const t=st.getVideoTracks()[0];
+      const fs=t.getSettings?t.getSettings().facingMode:'';if(fs==='user'){st.getTracks().forEach(x=>x.stop());continue}
+      stream=st;track=t;v.srcObject=st;try{await v.play()}catch(e){}
+      for(let k=0;k<4&&!hasTorch(track);k++)await new Promise(r=>setTimeout(r,250));
+      if(hasTorch(track))return true}
+    // nothing had a light: make sure a back camera is showing
+    if(track.readyState!=='live'){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});track=stream.getVideoTracks()[0];v.srcObject=stream;await v.play()}catch(e){}}
+    return false};
+  const flashTap=async()=>{const on=fb.getAttribute('aria-pressed')!=='true';
+    if(!on){try{await lightOn(false)}catch(e){}return}
+    fb.textContent='⚡ ...';const ok=await findTorch();fb.textContent='⚡ Flash';
+    if(!ok){toast('This phone will not let the app turn on its light. Dark photos get brightened automatically instead.');return}
+    try{await lightOn(true)}catch(e){toast('Could not turn on the light. Dark photos get brightened automatically instead.')}};
+  fb.onclick=flashTap;
+  try{if(localStorage.getItem('sdm.flash'))setTimeout(flashTap,400)}catch(e){}
+  const stop=()=>{try{track.applyConstraints({advanced:[{torch:false}]}).catch(()=>{})}catch(e){}try{stream.getTracks().forEach(t=>t.stop())}catch(e){}bg.remove()};
   bg.querySelector('.cam-x').onclick=()=>{stop();res('cancel')};
   bg.querySelector('.cam-shot').onclick=()=>{const w=v.videoWidth,h=v.videoHeight;if(!w){return}
     const k=Math.min(1,1000/Math.max(w,h));const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
-    c.getContext('2d').drawImage(v,0,0,c.width,c.height);let q=.62,url=c.toDataURL('image/jpeg',q);while(url.length>260000&&q>.3){q-=.08;url=c.toDataURL('image/jpeg',q)}
+    brightDraw(c,v);let q=.62,url=c.toDataURL('image/jpeg',q);while(url.length>260000&&q>.3){q-=.08;url=c.toDataURL('image/jpeg',q)}
     stop();res(url)};
 })}
 // the photo picker stays attached to the page while the camera is open (Android can lose a loose one)
