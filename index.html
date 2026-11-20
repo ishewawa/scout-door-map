@@ -1374,8 +1374,9 @@ function openDelivery(hid){
         const pg=g&&H[hid]?{d:Math.round(metersBetween(g,H[hid].c)),acc:Math.round(g.acc)}:null;
         await savePhoto(key,url,g);setMark(key,hid,{photo:Date.now(),pgeo:pg});
         const cur=mark(S.active,key)||{};
-        if(!cur.delivered&&cur.how!=='pickup'){await deliverKey(key,hid,true,null);toast('Photo saved and delivered')}
-        else{if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()}openDelivery(hid);toast('Photo saved')}}
+        // a photo means it was left at the door: mark it, then close the house
+        if(!cur.delivered&&cur.how!=='pickup'){if(!cur.how)setMark(key,hid,{how:'door'});const ok=await deliverKey(key,hid,true,null);if(ok){closeSheet();toast('Photo saved, left at door')}}
+        else{if(!cur.how)setMark(key,hid,{how:'door'});if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()}closeSheet();toast('Photo saved')}}
       catch(e){console.warn(e);openDelivery(hid);toast(e&&e.message?e.message:'Could not save the photo')}})};
   sheet.querySelectorAll('[data-photo]').forEach(b=>b.addEventListener('click',()=>takePhoto(+b.getAttribute('data-photo'),true)));
   sheet.querySelectorAll('[data-gallery]').forEach(b=>b.addEventListener('click',()=>takePhoto(+b.getAttribute('data-gallery'),false)));
