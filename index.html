@@ -215,6 +215,12 @@ textarea{min-height:84px;resize:vertical}
 .switch input:focus-visible + span{outline:3px solid var(--ink);outline-offset:2px}
 .money{display:flex;gap:14px;font-size:13px;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.85);flex-wrap:wrap}
 .money b{color:#fff;font-weight:700}
+.money .tbf{margin-left:auto;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;border-radius:999px;padding:3px 10px;font:600 12px/1.2 var(--body);cursor:pointer}
+.tbpop{position:fixed;z-index:900;right:12px;width:min(280px,calc(100% - 24px));background:#1b2230;color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.45);padding:8px}
+.tbpop p{margin:4px 8px 8px;font-size:12px;color:rgba(255,255,255,.7)}
+.tbpop label{display:flex;align-items:center;justify-content:space-between;padding:10px 8px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}
+.tbpop label:hover{background:rgba(255,255,255,.06)}
+.tbpop input{width:20px;height:20px;accent-color:#f5b301}
 .money .gt b{color:var(--accent)}
 .money .unp b{color:#ff8787}
 .money .kid{flex-basis:100%;background:rgba(245,179,1,.18);border:1px solid rgba(245,179,1,.45);border-radius:8px;padding:5px 8px;color:#fff}
@@ -813,6 +819,16 @@ async function pageSignature(){const r=await fetch(location.pathname+'?v='+Date.
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine)return;try{const sig=await pageSignature();if(pageSig===null){pageSig=sig;return}if(sig!==pageSig)$('#updPill').hidden=false}catch(e){}}
 setTimeout(checkUpdate,3000);setInterval(checkUpdate,5*60000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(checkUpdate,1500)});
+function openTBPop(){
+  let pop=document.getElementById('tbPop');if(pop){pop.remove();return}
+  pop=document.createElement('div');pop.className='tbpop';pop.id='tbPop';pop.setAttribute('role','dialog');pop.setAttribute('aria-label','What the top bar shows');
+  pop.innerHTML='<p>Show in the top bar (this phone only)</p>'+[['sale','Sales'],['unpaid','Not paid'],['don','Donations'],['total','Total']].map(([k,l])=>'<label>'+l+'<input type="checkbox" data-tbp="'+k+'"'+(TB[k]?' checked':'')+'></label>').join('');
+  const r=document.getElementById('money').getBoundingClientRect();pop.style.top=(r.bottom+8)+'px';document.body.appendChild(pop);
+  pop.querySelectorAll('[data-tbp]').forEach(i=>i.addEventListener('change',()=>{TB[i.getAttribute('data-tbp')]=i.checked;saveTB();renderTally();
+    const st=document.querySelector('[data-tb="'+i.getAttribute('data-tbp')+'"]');if(st)st.checked=i.checked;const r2=document.getElementById('money').getBoundingClientRect();pop.style.top=(r2.bottom+8)+'px'}));
+  setTimeout(()=>document.addEventListener('pointerdown',function off(e){if(!pop.contains(e.target)&&e.target.id!=='tbFilter'){pop.remove();document.removeEventListener('pointerdown',off)}}),0);
+}
+document.getElementById('money').addEventListener('click',e=>{if(e.target.closest('#tbFilter'))openTBPop()});
 function saveTB(){try{localStorage.setItem('sdm.topbar',JSON.stringify(TB))}catch(e){}}
 function renderTally(){
   const m=S.marks[S.active]||{};
@@ -824,7 +840,7 @@ function renderTally(){
   const t=seasonTotals(S.active);
   let kid='';if(S.lastSeller){let ks=0,kd=0,ky=0;for(const k in m){if(m[k].seller!==S.lastSeller||!H[k.split('|')[0]])continue;ks+=+m[k].sale||0;kd+=+m[k].don||0;if(m[k].st==='yes')ky++}
     kid='<span class="kid">'+esc(S.lastSeller)+': '+[TB.sale?'Sales <b>'+money(ks)+'</b>':'',TB.don?'Donated <b>'+money(kd)+'</b>':'',TB.total?'Total <b>'+money(TB.don?ks+kd:ks)+'</b>':'',ky+' yes'].filter(Boolean).join(' \u00b7 ')+'</span>'}
-  $('#money').innerHTML=kid+(TB.sale?'<span>Sales <b>'+money(t.sale)+'</b></span>':'')+(TB.unpaid&&(TB.don?t.unpaid:t.unpaidSale)?'<span class="unp">Not paid <b>'+money(TB.don?t.unpaid:t.unpaidSale)+'</b></span>':'')+(TB.don?'<span>Donations <b>'+money(t.don)+'</b></span>':'')+(TB.total?'<span class="gt">Total <b>'+money(TB.don?t.total:t.total-t.don)+'</b></span>':'');
+  $('#money').innerHTML=kid+(TB.sale?'<span>Sales <b>'+money(t.sale)+'</b></span>':'')+(TB.unpaid&&(TB.don?t.unpaid:t.unpaidSale)?'<span class="unp">Not paid <b>'+money(TB.don?t.unpaid:t.unpaidSale)+'</b></span>':'')+(TB.don?'<span>Donations <b>'+money(t.don)+'</b></span>':'')+(TB.total?'<span class="gt">Total <b>'+money(TB.don?t.total:t.total-t.don)+'</b></span>':'')+'<button type="button" class="tbf" id="tbFilter" aria-haspopup="true">'+(TB.sale&&TB.unpaid&&TB.don&&TB.total?'Filter':'Filtered')+' \u25be</button>';
   $('#tally').innerHTML=S.statuses.map(s=>'<span class="tchip"><i style="background:'+s.color+'"></i>'+esc(s.label)+' <b>'+(cnt[s.id]||0)+'</b></span>').join('')+'<span class="tchip">Paid <b>'+paid+'</b></span>'+(unpaid?'<span class="tchip warn">Not paid <b>'+unpaid+'</b></span>':'');
 }
 $('#seasonPill').addEventListener('click',()=>selectTab('seasons'));
