@@ -178,6 +178,9 @@ body.helper .tally .tchip:not(.warn){opacity:.9}
 .cam video{flex:1;width:100%;min-height:0;object-fit:cover}
 .cam-bar{display:flex;align-items:center;justify-content:space-between;padding:18px 22px calc(env(safe-area-inset-bottom,0px) + 22px);background:#000}
 .cam-x{width:72px;border:0;background:none;color:#fff;font:600 16px/1 var(--head)}
+.cam-flash{width:72px;border:0;border-radius:999px;background:rgba(255,255,255,.15);color:#fff;font:700 13px/1 var(--head);padding:10px 0}
+.cam-flash.on{background:#ffd43b;color:#1a1300}
+.cam-bar>span,.cam-flash[hidden]{visibility:hidden;display:block}
 .cam-shot{width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:#fff;box-shadow:inset 0 0 0 3px #000}
 .cam-shot:active{transform:scale(.94)}
 .dthumb{border:0;padding:0;background:none;width:58px;height:58px;border-radius:12px;overflow:hidden;flex:none}
@@ -1338,9 +1341,13 @@ async function deliverKey(key,hid,on,btn){
 function inAppCamera(){return new Promise(async res=>{
   let stream;try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false})}catch(e){return res(null)}
   const bg=document.createElement('div');bg.className='cam';
-  bg.innerHTML='<video playsinline muted autoplay></video><div class="cam-bar"><button class="cam-x" aria-label="Cancel">Cancel</button><button class="cam-shot" aria-label="Take photo"></button><span style="width:72px"></span></div>';
+  bg.innerHTML='<video playsinline muted autoplay></video><div class="cam-bar"><button class="cam-x" aria-label="Cancel">Cancel</button><button class="cam-shot" aria-label="Take photo"></button><button class="cam-flash" aria-label="Flash" aria-pressed="false" hidden>\u26a1 Flash</button></div>';
   document.body.appendChild(bg);const v=bg.querySelector('video');v.srcObject=stream;try{await v.play()}catch(e){}
-  const stop=()=>{stream.getTracks().forEach(t=>t.stop());bg.remove()};
+  // flash: turns the phone light on while aiming (remembered for next time)
+  const track=stream.getVideoTracks()[0];const fb=bg.querySelector('.cam-flash');
+  const setTorch=async on=>{try{await track.applyConstraints({advanced:[{torch:on}]});fb.setAttribute('aria-pressed',String(on));fb.classList.toggle('on',on);try{localStorage.setItem('sdm.flash',on?'1':'')}catch(e){}}catch(e){if(on)toast('This phone does not allow the light here')}};
+  try{const caps=track.getCapabilities?track.getCapabilities():{};if(caps.torch){fb.hidden=false;fb.onclick=()=>setTorch(fb.getAttribute('aria-pressed')!=='true');let pref='';try{pref=localStorage.getItem('sdm.flash')}catch(e){}if(pref)setTorch(true)}}catch(e){}
+  const stop=()=>{try{track.applyConstraints({advanced:[{torch:false}]}).catch(()=>{})}catch(e){}stream.getTracks().forEach(t=>t.stop());bg.remove()};
   bg.querySelector('.cam-x').onclick=()=>{stop();res('cancel')};
   bg.querySelector('.cam-shot').onclick=()=>{const w=v.videoWidth,h=v.videoHeight;if(!w){return}
     const k=Math.min(1,1000/Math.max(w,h));const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
