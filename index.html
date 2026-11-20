@@ -285,25 +285,31 @@ body{font-size:15px;letter-spacing:-.005em}
 .top{background:linear-gradient(180deg,#111827 0%,#0f172a 100%);padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 12px;gap:10px;border-radius:0 0 22px 22px;box-shadow:0 6px 20px rgba(2,6,23,.25)}
 .brand{font:800 20px/1 var(--head);text-transform:none;letter-spacing:-.02em}
 .season-pill{font:700 14px/1 var(--head);text-transform:none;letter-spacing:0;padding:8px 14px;box-shadow:0 2px 8px rgba(226,164,0,.35)}
-.scout-sel{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);padding:8px 12px;font:600 13px/1 var(--head);max-width:150px}
+.scout-sel{background:rgba(255,255,255,.08);border:0;padding:8px 12px;font:600 13px/1 var(--head);max-width:150px}
 .tally{gap:6px}
-.tchip{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);padding:5px 10px 5px 8px;font-size:12px;font-weight:500;color:rgba(255,255,255,.85)}
+.tchip{background:rgba(255,255,255,.07);border:0;padding:5px 10px 5px 8px;font-size:12px;font-weight:500;color:rgba(255,255,255,.85)}
 .tchip i{width:9px;height:9px;border-radius:50%;border:0}
 .tchip b{color:#fff}
-/* money: label above a big number, like stat tiles */
-.money{display:flex;flex-wrap:wrap;gap:6px;font-size:11px}
-.money > span:not(.kid){flex:1 1 0;display:flex;flex-direction:column;gap:2px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:7px 9px;color:rgba(255,255,255,.62);font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.money > span:not(.kid) b{font:800 16px/1.15 var(--head);letter-spacing:-.01em;white-space:nowrap}
-.money .gt{background:rgba(245,179,1,.12)!important;border-color:rgba(245,179,1,.35)!important}
-.money .kid{flex-basis:100%;border-radius:12px;padding:7px 10px;font-size:12px}
-.money .tbf{flex:none;align-self:stretch;margin:0;padding:0 10px;border-radius:12px;background:transparent;border:1px dashed rgba(255,255,255,.22);color:rgba(255,255,255,.75);font-size:11px;line-height:1.2;max-width:62px;white-space:normal}
+/* money: clean stats, label above number, no boxes */
+.money{display:flex;flex-wrap:nowrap;align-items:flex-end;gap:18px;font-size:11px;padding:2px 2px 0}
+.money > span:not(.kid){display:flex;flex-direction:column;gap:1px;color:rgba(255,255,255,.55);font-weight:500;min-width:0;white-space:nowrap}
+.money > span:not(.kid) b{font:700 18px/1.15 var(--head);letter-spacing:-.015em;color:#fff}
+.money > span.gt b{color:var(--accent)}
+.money > span.unp b{color:#ff8a8a}
+.soldby select{border:0;background:color-mix(in srgb,var(--ink) 6%,var(--surface))}
+.money .kid{flex-basis:100%;border-radius:10px;padding:6px 10px;font-size:12px;background:rgba(245,179,1,.12);border:0}
+.money:has(.kid){flex-wrap:wrap}
+.money .tbf{margin-left:auto;align-self:center;flex:none;width:34px;height:34px;padding:0;border-radius:50%;border:0;background:rgba(255,255,255,.08);color:transparent;font-size:0;position:relative}
+.money .tbf::before{content:"";position:absolute;inset:0;margin:auto;width:16px;height:16px;background:rgba(255,255,255,.8);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M4 6h16M7 12h10M10 18h4'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M4 6h16M7 12h10M10 18h4'/%3E%3C/svg%3E") center/contain no-repeat}
+.money .tbf.on{background:var(--accent)}
+.money .tbf.on::before{background:#231a00}
 /* map controls */
 .search{left:12px;right:12px;top:12px}
-.search .box{border-radius:999px;border:1px solid var(--line);box-shadow:var(--shadow);padding:0 8px 0 16px;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.search .box{border-radius:999px;border:0;box-shadow:var(--shadow);padding:0 8px 0 16px;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .search input{padding:12px 0;font-size:16px;border:0!important;background:transparent!important;box-shadow:none!important;border-radius:0}
 .sres{border-radius:var(--r);box-shadow:var(--shadow)}
 .fabs{right:12px;bottom:16px;gap:10px}
-.fab{width:50px;height:50px;border-radius:16px;border:1px solid var(--line);box-shadow:var(--shadow);background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.fab{width:50px;height:50px;border-radius:50%;border:0;box-shadow:var(--shadow);background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .fab svg{width:21px;height:21px}
 .updpill{background:#2563eb;box-shadow:0 8px 24px rgba(37,99,235,.45);bottom:20px}
 .toast{border-radius:999px;padding:11px 16px;box-shadow:var(--shadow)}
@@ -322,26 +328,27 @@ body{font-size:15px;letter-spacing:-.005em}
 .sh-body{padding:0 18px 22px;gap:20px}
 .label{font:700 11.5px/1 var(--head);letter-spacing:.09em;margin-bottom:10px}
 .chips{gap:8px}
-.chip{border:1.5px solid var(--line);border-radius:14px;min-height:50px;padding:11px 12px;transition:border-color .12s,background .12s}
+.chip{border:0;background:color-mix(in srgb,var(--ink) 5%,var(--surface));border-radius:14px;min-height:50px;padding:11px 12px;transition:border-color .12s,background .12s}
 .chip i{width:14px;height:14px;border-radius:50%;border:0}
-.chip[aria-pressed="true"]{border-color:var(--ink);background:color-mix(in srgb,var(--ink) 6%,var(--surface));box-shadow:0 0 0 1px var(--ink) inset}
-textarea,input[type=text],input[type=number],select{border:1.5px solid var(--line);border-radius:12px;padding:11px 13px;background:var(--surface)}
+.chip[aria-pressed="true"]{background:color-mix(in srgb,var(--ink) 11%,var(--surface));box-shadow:0 0 0 2px var(--ink) inset}
+textarea,input[type=text],input[type=number],select{border:1.5px solid transparent;border-radius:12px;padding:11px 13px;background:color-mix(in srgb,var(--ink) 6%,var(--surface))}
 textarea:focus,input[type=text]:focus,input[type=number]:focus,select:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
-.btn{border:1.5px solid var(--line);border-radius:12px;padding:10px 16px;font-weight:600;transition:transform .08s}
+.btn{border:0;background:color-mix(in srgb,var(--ink) 8%,var(--surface));border-radius:12px;padding:10px 16px;font-weight:600;transition:transform .08s}
 .btn:active,.chip:active,.fab:active,.big-btn:active{transform:scale(.97)}
 .btn.primary{background:var(--ink);border-color:var(--ink)}
 .btn.small{padding:7px 12px;border-radius:10px}
 .big-btn{border-radius:14px;padding:15px}
-.list,.hist,.items,.board,.paidbox,.heatbox,.rcpt,.dcard,.knockrow{border-radius:var(--r);border:1px solid var(--line)}
+.list,.hist,.items,.board,.paidbox,.heatbox,.rcpt,.dcard,.knockrow{border-radius:var(--r);border:0;background:color-mix(in srgb,var(--ink) 4%,var(--surface))}
 .heatbox{background:var(--surface)}
 .li .nm{font:700 17px/1.2 var(--head);letter-spacing:-.01em}
 .hist-row .yr{font:700 15px/1.2 var(--head)}
 .dcard h3{font:800 20px/1.15 var(--head)}
 .drow b{font:800 26px/1 var(--head)}
 .item.has{background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
-.step button,.knockrow button{border-radius:12px;border:1.5px solid var(--line)}
-.step input{border-radius:12px;border:1.5px solid var(--line)}
-.pay label{border:1.5px solid var(--line);border-radius:14px}
+.step button,.knockrow button{border-radius:12px;border:0;background:color-mix(in srgb,var(--ink) 8%,var(--surface))}
+.step input{border-radius:12px;border:0;background:var(--surface)}
+.pay label{border:0;background:color-mix(in srgb,var(--ink) 5%,var(--surface));border-radius:14px}
+.pay label:has(input:checked){box-shadow:0 0 0 2px var(--ink) inset}
 .switch span{background:color-mix(in srgb,var(--ink) 18%,transparent)}
 .tag{border-radius:999px;padding:5px 9px}
 .modal{border-radius:22px;padding:20px;box-shadow:var(--shadow)}
@@ -613,7 +620,7 @@ function styleFor(hid){
     const f=n/tot;
     return{color:sel?cssv('--accent'):st.color,weight:sel?3.5:1.5,opacity:1,fillColor:shadeColor(st.color,f),fillOpacity:.25+.7*f};
   }
-  const m=mark(S.active,hid), st=m&&statusById(m.st);
+  const m=mark(S.active,hid), st=m&&!hideDonSt(m.st)&&statusById(m.st);
   if(st) return{color:sel?cssv('--accent'):shadeColor(st.color,1),weight:sel?3.5:1.5,opacity:1,fillColor:st.color,fillOpacity:.78};
   return{color:sel?cssv('--accent'):outline,weight:sel?3.5:1.3,opacity:.9,fillColor:box,fillOpacity:.3};
 }
@@ -656,7 +663,7 @@ function sliceStyle(hid,u){
   if(heatOn()){const hi=heatInfo(key),st=hi.st,n=hi.n,tot=shown().length;
     if(!n)return{color:outline,weight:1,opacity:.7,fillColor:box,fillOpacity:.08};
     const f=n/tot;return{color:outline,weight:1,opacity:.9,fillColor:shadeColor(st.color,f),fillOpacity:.25+.7*f}}
-  const m=mark(S.active,key),st=m&&statusById(m.st);
+  const m=mark(S.active,key),st=m&&!hideDonSt(m.st)&&statusById(m.st);
   if(st)return{color:outline,weight:1,opacity:.9,fillColor:st.color,fillOpacity:.8};
   return{color:outline,weight:1,opacity:.8,fillColor:box,fillOpacity:.3};
 }
@@ -901,11 +908,12 @@ function openTBPop(){
   pop=document.createElement('div');pop.className='tbpop';pop.id='tbPop';pop.setAttribute('role','dialog');pop.setAttribute('aria-label','What the top bar shows');
   pop.innerHTML='<p>Show in the top bar (this phone only)</p>'+[['sale','Sales'],['unpaid','Not paid'],['don','Donations'],['total','Total']].map(([k,l])=>'<label>'+l+'<input type="checkbox" data-tbp="'+k+'"'+(TB[k]?' checked':'')+'></label>').join('');
   const r=document.getElementById('money').getBoundingClientRect();pop.style.top=(r.bottom+8)+'px';document.body.appendChild(pop);
-  pop.querySelectorAll('[data-tbp]').forEach(i=>i.addEventListener('change',()=>{TB[i.getAttribute('data-tbp')]=i.checked;saveTB();renderTally();
+  pop.querySelectorAll('[data-tbp]').forEach(i=>i.addEventListener('change',()=>{TB[i.getAttribute('data-tbp')]=i.checked;saveTB();restyleAll();
     const st=document.querySelector('[data-tb="'+i.getAttribute('data-tbp')+'"]');if(st)st.checked=i.checked;const r2=document.getElementById('money').getBoundingClientRect();pop.style.top=(r2.bottom+8)+'px'}));
   setTimeout(()=>document.addEventListener('pointerdown',function off(e){if(!pop.contains(e.target)&&e.target.id!=='tbFilter'){pop.remove();document.removeEventListener('pointerdown',off)}}),0);
 }
 document.getElementById('money').addEventListener('click',e=>{if(e.target.closest('#tbFilter'))openTBPop()});
+function hideDonSt(id){if(TB.don||!id)return false;const st=statusById(id);return !!(st&&(/donat/i.test(st.label)||/donat/i.test(st.id)))}
 function saveTB(){try{localStorage.setItem('sdm.topbar',JSON.stringify(TB))}catch(e){}}
 function renderTally(){
   const m=S.marks[S.active]||{};
@@ -917,8 +925,8 @@ function renderTally(){
   const t=seasonTotals(S.active);
   let kid='';if(S.lastSeller){let ks=0,kd=0,ky=0;for(const k in m){if(m[k].seller!==S.lastSeller||!H[k.split('|')[0]])continue;ks+=+m[k].sale||0;kd+=+m[k].don||0;if(m[k].st==='yes')ky++}
     kid='<span class="kid">'+esc(S.lastSeller)+': '+[TB.sale?'Sales <b>'+money(ks)+'</b>':'',TB.don?'Donated <b>'+money(kd)+'</b>':'',TB.total?'Total <b>'+money(TB.don?ks+kd:ks)+'</b>':'',ky+' yes'].filter(Boolean).join(' \u00b7 ')+'</span>'}
-  $('#money').innerHTML=kid+(TB.sale?'<span>Sales <b>'+money(t.sale)+'</b></span>':'')+(TB.unpaid&&(TB.don?t.unpaid:t.unpaidSale)?'<span class="unp">Not paid <b>'+money(TB.don?t.unpaid:t.unpaidSale)+'</b></span>':'')+(TB.don?'<span>Donations <b>'+money(t.don)+'</b></span>':'')+(TB.total?'<span class="gt">Total <b>'+money(TB.don?t.total:t.total-t.don)+'</b></span>':'')+'<button type="button" class="tbf" id="tbFilter" aria-haspopup="true">'+(TB.sale&&TB.unpaid&&TB.don&&TB.total?'Filter':'Filtered')+' \u25be</button>';
-  $('#tally').innerHTML=S.statuses.map(s=>'<span class="tchip"><i style="background:'+s.color+'"></i>'+esc(s.label)+' <b>'+(cnt[s.id]||0)+'</b></span>').join('')+'<span class="tchip">Paid <b>'+paid+'</b></span>'+(unpaid?'<span class="tchip warn">Not paid <b>'+unpaid+'</b></span>':'');
+  $('#money').innerHTML=kid+(TB.sale?'<span>Sales <b>'+money(t.sale)+'</b></span>':'')+(TB.unpaid&&(TB.don?t.unpaid:t.unpaidSale)?'<span class="unp">Not paid <b>'+money(TB.don?t.unpaid:t.unpaidSale)+'</b></span>':'')+(TB.don?'<span>Donations <b>'+money(t.don)+'</b></span>':'')+(TB.total?'<span class="gt">Total <b>'+money(TB.don?t.total:t.total-t.don)+'</b></span>':'')+(()=>{const all=TB.sale&&TB.unpaid&&TB.don&&TB.total;return '<button type="button" class="tbf'+(all?'':' on')+'" id="tbFilter" aria-haspopup="true" aria-label="'+(all?'Filter the top bar':'Top bar is filtered')+'">'+(all?'Filter':'Filtered')+'</button>'})();
+  $('#tally').innerHTML=S.statuses.filter(s=>!hideDonSt(s.id)).map(s=>'<span class="tchip"><i style="background:'+s.color+'"></i>'+esc(s.label)+' <b>'+(cnt[s.id]||0)+'</b></span>').join('')+'<span class="tchip">Paid <b>'+paid+'</b></span>'+(unpaid?'<span class="tchip warn">Not paid <b>'+unpaid+'</b></span>':'');
 }
 $('#seasonPill').addEventListener('click',()=>selectTab('seasons'));
 function renderScoutSel(){const sel=$('#scoutSel');sel.innerHTML='<option value="">Scout: none</option>'+sellers().map(n=>'<option value="'+esc(n)+'"'+(S.lastSeller===n?' selected':'')+'>'+esc(n)+'</option>').join('')}
@@ -1256,7 +1264,7 @@ function openSettings(){
       if(!await confirmBox(used?'Delete "'+s.label+'"? '+used+' marked door'+(used===1?'':'s')+' will go back to unmarked. Notes stay.':'Delete "'+s.label+'"?','Delete'))return;
       for(const sid in S.marks)for(const h in S.marks[sid])if(S.marks[sid][h].st===s.id)S.marks[sid][h].st=null;
       S.statuses.splice(i,1);if(S.heat.status===s.id)S.heat.status=S.statuses[0].id;saveS();restyleAll();openSettings()}});
-  sheet.querySelectorAll('[data-tb]').forEach(i=>i.addEventListener('change',()=>{TB[i.getAttribute('data-tb')]=i.checked;saveTB();renderTally()}));
+  sheet.querySelectorAll('[data-tb]').forEach(i=>i.addEventListener('change',()=>{TB[i.getAttribute('data-tb')]=i.checked;saveTB();restyleAll()}));
   sheet.querySelector('#addSt').addEventListener('click',()=>{const pal=['#7048e8','#d6336c','#0ca678','#e8590c','#3bc9db','#495057'];S.statuses.push({id:'st'+Date.now().toString(36),label:'New status',color:pal[S.statuses.length%pal.length]});saveS();renderTally();openSettings();const ins=sheet.querySelectorAll('[data-label]');const last=ins[ins.length-1];last.focus();last.select()});
   sheet.querySelector('#exp').addEventListener('click',exportBackup);
   sheet.querySelector('#rcName').addEventListener('change',e=>{S.packName=e.target.value.trim();saveS();toast('Saved')});
