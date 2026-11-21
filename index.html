@@ -616,7 +616,7 @@ function delStyle(list,sel){
   const owes=list.some(x=>!x.o.m.paid&&x.o.due>0);
   if(list.every(x=>x.o.m.delivered))return{color:sel?cssv('--accent'):(owes?'#e03131':'#868e96'),weight:sel?3.5:(owes?3:1.5),opacity:.9,fillColor:'#adb5bd',fillOpacity:.45};
   const pk=list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');
-  const blue=onHold(list);
+  const blue=!!DSKIP.length&&!onHold(list);
   if(pk)return{color:sel?cssv('--accent'):(owes?'#e03131':blue?'#1971c2':'#2f9e44'),weight:sel?3.5:(owes?4:2.5),opacity:1,fillColor:'#9775fa',fillOpacity:.85};
   return{color:sel?cssv('--accent'):(owes?'#e03131':blue?'#1971c2':'#2f9e44'),weight:sel?3.5:(owes||blue?4:3),opacity:1,fillColor:'#ffb300',fillOpacity:.9};
 }
@@ -761,7 +761,7 @@ function drawHouses(){
 function drawDeliveryLabels(){
   if(map.getZoom()<16)return;const b=map.getBounds().pad(.1);const full=map.getZoom()>=18;
   for(const id in H){const h=H[id];if(!inView(b,h))continue;const list=houseOrders(id);if(!list.length)continue;
-    const owe=list.some(x=>!x.o.m.paid&&x.o.due>0);const done=list.every(x=>x.o.m.delivered);const hold=!done&&onHold(list);const pk=!done&&list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');let n=0,due=0;
+    const owe=list.some(x=>!x.o.m.paid&&x.o.due>0);const done=list.every(x=>x.o.m.delivered);const hold=!done&&!!DSKIP.length&&!onHold(list);const pk=!done&&list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');let n=0,due=0;
     let html='<div class="dl'+(done?' done':'')+(pk?' pk':'')+(owe?' owe':'')+(hold?' hold':'')+'">'+(pk?'<span class="pktag">\ud83d\udce6 Pickup</span>':'')+'<span class="a">'+esc(h.n||'?')+'</span>';
     for(const x of list){due+=x.o.due;for(const it of x.o.items)n+=it.q;
       if(full){const parts=x.o.items.map(it=>'<b>'+it.q+'</b> '+esc(pcode(it.p)));if(x.o.legacy)parts.push(money(x.o.legacy)+' order');
@@ -975,7 +975,7 @@ function renderTally(){
   const m=S.marks[S.active]||{};
   if(S.deliver){let todo=0,done=0,pick=0;const left={};const prods=prodsFor(S.active);
     for(const k in m){const hid=k.split('|')[0];if(!H[hid]||H[hid].x)continue;const o=orderOf(k);if(!o)continue;if(m[k].delivered){done++;continue}if(m[k].how==='pickup'){pick++;continue}todo++;for(const it of o.items)left[it.p.id]=(left[it.p.id]||0)+it.q}
-    $('#tally').innerHTML='<button type="button" class="tchip share" id="shareRoute">\u2197 Share route</button><span class="tchip dv">To deliver <b>'+todo+'</b></span><button type="button" class="tchip itf" id="itemFilter">'+(DSKIP.length?'Filtered <b>'+holdCount()+'</b>':'\u2611 Filter items')+'</button>'+(pick?'<button type="button" class="tchip pk" id="pickupList">\ud83d\udce6 Pickup <b>'+pick+'</b></button>':'')+'<span class="tchip">Delivered <b>'+done+'</b></span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #2f9e44 inset"></i>Paid</span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #e03131 inset"></i>Owes</span>'+prods.filter(p=>left[p.id]).map(p=>'<span class="tchip">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></span>').join('');
+    $('#tally').innerHTML='<button type="button" class="tchip share" id="shareRoute">\u2197 Share route</button><span class="tchip dv">To deliver <b>'+todo+'</b></span><button type="button" class="tchip itf" id="itemFilter">'+(DSKIP.length?'Ready <b>'+holdCount()+'</b>':'\u2611 Filter items')+'</button>'+(pick?'<button type="button" class="tchip pk" id="pickupList">\ud83d\udce6 Pickup <b>'+pick+'</b></button>':'')+'<span class="tchip">Delivered <b>'+done+'</b></span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #2f9e44 inset"></i>Paid</span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #e03131 inset"></i>Owes</span>'+prods.filter(p=>left[p.id]).map(p=>'<span class="tchip">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></span>').join('');
     const t=seasonTotals(S.active);$('#money').innerHTML='<span>Delivery mode</span>'+(t.unpaid?'<span class="unp">Still to collect <b>'+money(t.unpaid)+'</b></span>':'<span>All paid</span>');return}const cnt={};for(const id in m){const st=m[id].st;if(st)cnt[st]=(cnt[st]||0)+1}
   let paid=0,unpaid=0;for(const id in m){if(m[id].paid)paid++;else if(needsPay(id))unpaid++}
   const t=seasonTotals(S.active);
@@ -1240,7 +1240,7 @@ function openItemFilter(){
   const m=S.marks[S.active]||{};const left={};const prods=prodsFor(S.active);
   for(const k in m){if(!H[k.split('|')[0]]||m[k].delivered)continue;const o=orderOf(k);if(!o)continue;for(const it of o.items)left[it.p.id]=(left[it.p.id]||0)+it.q}
   pop=document.createElement('div');pop.className='tbpop dfpop';pop.id='dfPop';pop.setAttribute('role','dialog');pop.setAttribute('aria-label','Items in the truck');
-  pop.innerHTML='<p>Check what you are delivering. Houses that still need it get a blue border.</p>'+prods.filter(p=>left[p.id]).map(p=>'<label><span>'+esc(p.label)+' <small>'+left[p.id]+' left \u00b7 '+esc(pcode(p))+'</small></span><input type="checkbox" data-df="'+esc(p.id)+'"'+(DSKIP.includes(p.id)?' checked':'')+'></label>').join('')+
+  pop.innerHTML='<p>Check what is in the truck. Houses you can fully deliver stay green. Houses missing something turn blue.</p>'+prods.filter(p=>left[p.id]).map(p=>'<label><span>'+esc(p.label)+' <small>'+left[p.id]+' left \u00b7 '+esc(pcode(p))+'</small></span><input type="checkbox" data-df="'+esc(p.id)+'"'+(DSKIP.includes(p.id)?' checked':'')+'></label>').join('')+
     '<p style="margin-top:8px"><button type="button" class="btn small" id="dfAll" style="width:100%">Clear filter</button></p>';
   const r=document.getElementById('tally').getBoundingClientRect();pop.style.top=(r.bottom+8)+'px';document.body.appendChild(pop);
   const apply=()=>{saveDskip();restyleAll();if(map.getZoom()>=16)drawLabels()};
