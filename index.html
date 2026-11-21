@@ -608,7 +608,8 @@ function holdCount(){let n=0;for(const hid in H){if(H[hid].x)continue;const l=ho
 // items picked in the delivery filter (this phone only). Houses still needing one of them get a blue border.
 let DSKIP=(()=>{try{return JSON.parse(localStorage.getItem('sdm.dpick')||'[]')}catch(e){return []}})();
 function saveDskip(){try{localStorage.setItem('sdm.dpick',JSON.stringify(DSKIP))}catch(e){}}
-function onHold(list){if(!DSKIP.length)return false;return list.some(x=>!x.o.m.delivered&&x.o.items.some(it=>DSKIP.includes(it.p.id)))}
+// blue only when everything this house still needs is checked, so the whole order can be dropped off
+function onHold(list){if(!DSKIP.length)return false;const pend=list.filter(x=>!x.o.m.delivered);if(!pend.length)return false;return pend.every(x=>x.o.items.length&&!x.o.legacy&&x.o.items.every(it=>DSKIP.includes(it.p.id)))}
 function delStyle(list,sel){
   if(!list.length)return{color:cssv('--outline'),weight:sel?3.5:1,opacity:.35,fillColor:cssv('--box'),fillOpacity:.06};
   // amber = to deliver, purple = they will pick up, red edge = still owes money, blue = item not in the truck
