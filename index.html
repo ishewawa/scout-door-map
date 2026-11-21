@@ -172,7 +172,8 @@ body.helper .tally .tchip:not(.warn){opacity:.9}
 .dhow{margin-top:8px;grid-template-columns:1fr 1fr}.dhow .pkchip{grid-column:1/-1}
 .tchip.pk{border:0;background:#7048e8;color:#fff;cursor:pointer}
 .dl.pk{border:3px solid #2f9e44;background:#f1ecff}
-.dl.hold,.dl.hold.owe,.dl.pk.hold{border-color:#1971c2;border-width:4px}
+.dl.hold,.dl.pk.hold{border-color:#1971c2;border-width:4px}
+.dl.hold.owe,.dl.pk.hold.owe{border-color:#e03131}
 .tchip.itf{border:0;background:#1971c2;color:#fff;cursor:pointer}
 .dfpop label{gap:12px}.dfpop label span{flex:1}.dfpop small{color:rgba(255,255,255,.6);font-weight:500}.dl.pk.owe{border-color:#e03131;border-width:3px;background:#fff0f0}
 .tchip.dv{background:#ffb300;color:#2b1d00}.tchip.dv b{color:#2b1d00}.dl .pktag{display:block;font-size:11px;font-weight:700;color:#7048e8}.dhow .chip{min-height:44px;justify-content:center;font-size:14px}
@@ -615,8 +616,8 @@ function delStyle(list,sel){
   if(list.every(x=>x.o.m.delivered))return{color:sel?cssv('--accent'):(owes?'#e03131':'#868e96'),weight:sel?3.5:(owes?3:1.5),opacity:.9,fillColor:'#adb5bd',fillOpacity:.45};
   const pk=list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');
   const blue=onHold(list);
-  if(pk)return{color:sel?cssv('--accent'):(blue?'#1971c2':owes?'#e03131':'#2f9e44'),weight:sel?3.5:(owes?4:2.5),opacity:1,fillColor:'#9775fa',fillOpacity:.85};
-  return{color:sel?cssv('--accent'):(blue?'#1971c2':owes?'#e03131':'#2f9e44'),weight:sel?3.5:(owes||blue?4:3),opacity:1,fillColor:'#ffb300',fillOpacity:.9};
+  if(pk)return{color:sel?cssv('--accent'):(owes?'#e03131':blue?'#1971c2':'#2f9e44'),weight:sel?3.5:(owes?4:2.5),opacity:1,fillColor:'#9775fa',fillOpacity:.85};
+  return{color:sel?cssv('--accent'):(owes?'#e03131':blue?'#1971c2':'#2f9e44'),weight:sel?3.5:(owes||blue?4:3),opacity:1,fillColor:'#ffb300',fillOpacity:.9};
 }
 // come back times and receipts
 function fmtBack(v){if(!v)return'';const d=new Date(v);if(isNaN(d))return'';return d.toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'})}
