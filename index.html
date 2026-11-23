@@ -1010,7 +1010,7 @@ function openTBPop(){
 document.getElementById('money').addEventListener('click',e=>{if(e.target.closest('#tbFilter'))openTBPop()});
 function hideDonSt(id){if(TB.don||!id)return false;const st=statusById(id);return !!(st&&(/donat/i.test(st.label)||/donat/i.test(st.id)))}
 function saveTB(){try{localStorage.setItem('sdm.topbar',JSON.stringify(TB))}catch(e){}}
-function renderTally(){
+function renderTally(){try{if(S.deliver||PREVIEW)drawRouteOverlay()}catch(e){}
   const m=S.marks[S.active]||{};
   if(S.deliver){let todo=0,done=0,pick=0;const left={};const prods=prodsFor(S.active);
     for(const k in m){const hid=k.split('|')[0];if(!H[hid]||H[hid].x)continue;const o=orderOf(k);if(!o)continue;if(m[k].delivered){done++;continue}if(m[k].how==='pickup'){pick++;continue}todo++;for(const it of o.items)left[it.p.id]=(left[it.p.id]||0)+it.q}
@@ -1483,6 +1483,7 @@ async function deliverKey(key,hid,on,btn){
       await confirmBox('Already delivered'+(r.dBy?' by '+r.dBy:' from the other phone')+(r.dAt?' at '+new Date(r.dAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'')+'. Do not drop off another one.','OK');openDelivery(hid);return false}}
   setMark(key,hid,on?{delivered:true,dAt:Date.now(),dBy:deviceName()}:{delivered:false,dAt:null,dBy:null,how:null});drawLabels();
   if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()} // send right away
+  if(on&&ROUTE&&!routeLeft()){const n=ROUTE.name;ROUTE=null;saveRoute();restyleAll();closeSheet();toast(n+' done \ud83c\udf89 Open Routes for the next one');return true}
   if(on&&houseOrders(hid).every(y=>y.o.m.delivered)){toast('Delivered');closeSheet()}else openDelivery(hid);
   return true}
 // draws the picture and, if it came out dark, brightens it so the porch is visible
@@ -1556,7 +1557,7 @@ function openDelivery(hid){
       (x.o.legacy?'<div class="drow"><b>'+money(x.o.legacy)+'</b><span>order, items not listed</span></div>':'')+
       (m.paid?'<div class="dpay ok">Paid'+(by?' by '+esc(by):'')+'</div>':'<div class="dpay due">Not paid: '+money(x.o.due)+' due</div>'+(S.venmo&&x.o.due?'<button class="vbtn" data-venmo="'+i+'">Show Venmo QR for '+money(x.o.due)+'</button>':'')+'<div class="row" style="flex-wrap:wrap">'+['Cash','Check','Venmo'].map(w=>'<button class="btn small" data-paid="'+i+'" data-w="'+w.toLowerCase()+'">Paid by '+w+'</button>').join('')+'</div>')+
       (m.note?'<div class="hint">'+esc(m.note)+'</div>':'')+
-      (i===0?'<button type="button" class="btn" data-navto="'+h.c[0]+','+h.c[1]+'">Navigate in Google Maps</button>':'')+
+      (i===0?'<button type="button" class="btn" data-navto="'+h.c[0]+','+h.c[1]+'">Navigate in Google Maps</button>'+(ROUTE&&ROUTE.hids.includes(hid)&&!list.every(y=>y.o.m.delivered)?'<button type="button" class="btn" data-skip="1">\u23ed Skip for now (save for a later route)</button>':''):'')+
       '<button class="big-btn'+(m.delivered?' undo':'')+'" data-dlv="'+i+'">'+(m.delivered?'Delivered \u2713'+(m.dBy?' by '+esc(m.dBy):'')+(m.dAt?' at '+new Date(m.dAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):'')+(m.how==='door'?', left at door':m.how==='person'?', handed to someone':m.how==='pickup'?', picked up':'')+' (tap to undo)':(m.how==='pickup'?'They picked it up':'Mark delivered'))+'</button>'+
       '<div class="chips dhow" role="group" aria-label="How it was delivered"><button class="chip" data-how="door" data-i="'+i+'" aria-pressed="'+(m.how==='door')+'">\ud83d\udeaa Left at door</button><button class="chip" data-how="person" data-i="'+i+'" aria-pressed="'+(m.how==='person')+'">\ud83e\udd1d Handed to someone</button><button class="chip pkchip" data-how="pickup" data-i="'+i+'" aria-pressed="'+(m.how==='pickup')+'">\ud83d\udce6 Will pick up from us</button></div>'+
       '<div class="row dphoto"><button class="btn" data-photo="'+i+'">\ud83d\udcf7 '+(m.photo?'Retake photo':(m.delivered?'Add photo':'Photo + mark delivered'))+'</button><button class="btn small" data-gallery="'+i+'" aria-label="Pick a photo you already took">From photos</button>'+(m.photo?'<button class="dthumb" data-view="'+i+'" aria-label="See delivery photo"><img alt="" data-thumb="'+esc(x.key)+'"></button>':'')+'</div>'+(m.photo&&m.pgeo?'<p class="hint pgeo'+(m.pgeo.d-(m.pgeo.acc||0)>100?' far':'')+'">'+geoText(m.pgeo)+'</p>':'')+'</div>'});
@@ -1564,6 +1565,8 @@ function openDelivery(hid){
     '<div class="sh-body">'+html+'<button class="btn" id="dFull">Open full details</button></div>',list.length>1);
   sheet.querySelector('#dFull').addEventListener('click',()=>openHouse(hid));
   sheet.querySelectorAll('[data-dlv]').forEach(b=>b.addEventListener('click',()=>{const x=list[+b.getAttribute('data-dlv')];deliverKey(x.key,hid,!x.o.m.delivered,b)}));
+  const sk=sheet.querySelector('[data-skip]');if(sk)sk.addEventListener('click',()=>{if(!ROUTE)return;ROUTE.hids=ROUTE.hids.filter(x=>x!==hid);saveRoute();closeSheet();restyleAll();
+    if(!routeLeft()){const n=ROUTE.name;ROUTE=null;saveRoute();restyleAll();toast(n+' done \ud83c\udf89 Skipped houses go in your next routes')}else toast('Skipped. It will be in your next route.')});
   sheet.querySelectorAll('[data-how]').forEach(b=>b.addEventListener('click',()=>{const i=+b.getAttribute('data-i');const x=list[i];const v=b.getAttribute('data-how');const nv=x.o.m.how===v?null:v;
     setMark(x.key,hid,{how:nv});
     if(nv&&nv!=='pickup'&&!x.o.m.delivered){deliverKey(x.key,hid,true,null);return}
