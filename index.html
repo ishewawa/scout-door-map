@@ -1207,12 +1207,12 @@ function openBuilding(hid,editNumber){
   wireEditors(hid,()=>openHouse(hid));
 }
 // delivery route to share: houses still to deliver, put in a sensible driving order
-function routeStops(scope){
+function routeStops(scope,start){
   const b=map.getBounds();const out=[];
   for(const hid in H){const h=H[hid];if(!h||h.x||!h.c)continue;if(scope==='screen'&&!b.contains(h.c))continue;
     const list=houseOrders(hid).filter(x=>!x.o.m.delivered&&x.o.m.how!=='pickup');if(list.length)out.push({hid,h,list})}
   // nearest next stop, starting from the middle of the map
-  const ordered=[];let cur=map.getCenter();cur=[cur.lat,cur.lng];const left=out.slice();
+  const ordered=[];let cur=start;if(!cur){const mc=map.getCenter();cur=[mc.lat,mc.lng]}const left=out.slice();
   const d=(a,c)=>{const k=Math.cos(a[0]*Math.PI/180);return (a[0]-c[0])**2+((a[1]-c[1])*k)**2};
   while(left.length){let bi=0;for(let i=1;i<left.length;i++)if(d(left[i].h.c,cur)<d(left[bi].h.c,cur))bi=i;const nx=left.splice(bi,1)[0];ordered.push(nx);cur=nx.h.c}
   return ordered}
@@ -1266,8 +1266,8 @@ function openItemFilter(){
   setTimeout(()=>document.addEventListener('pointerdown',function off(e){if(!pop.contains(e.target)&&!e.target.closest('#itemFilter')){pop.remove();document.removeEventListener('pointerdown',off)}}),0);
 }
 // routes: split what is left into truckloads of nearby houses, in driving order
-function planRoutes(perLoad){
-  const stops=routeStops('all');const out=[];let cur=null;
+function planRoutes(perLoad,start){
+  const stops=routeStops('all',start);const out=[];let cur=null;
   for(const st of stops){const n=st.list.reduce((a,x)=>a+x.o.items.reduce((b,it)=>b+it.q,0),0)||1;
     if(!cur||(cur.items+n>perLoad&&cur.stops.length)){cur={stops:[],items:0};out.push(cur)}cur.stops.push(st);cur.items+=n}
   return out.map((r,i)=>{const load={};let due=0;const streets=[];
@@ -1278,6 +1278,7 @@ function routeLinks(stops){const links=[];for(let i=0;i<stops.length;i+=10){cons
   links.push({label:ch.length===1?'Stop '+(i+1):'Stops '+(i+1)+' to '+(i+ch.length),u})}return links}
 function openRoutes(){
   sheetKind='routes';let per=40;try{per=+localStorage.getItem('sdm.perload')||40}catch(e){}
+  let start=null,startLabel='where the map is now';
   const draw=()=>{
     let body='';
     if(ROUTE){const stops=ROUTE.hids.filter(h=>H[h]).map(hid=>({hid,h:H[hid],list:houseOrders(hid).filter(x=>!x.o.m.delivered&&x.o.m.how!=='pickup')})).filter(st=>st.list.length);
@@ -1286,15 +1287,21 @@ function openRoutes(){
         (Object.keys(load).length?'<p class="label" style="margin:4px 0 0">Still in the truck for this route</p><div class="rload">'+Object.keys(load).map(k=>'<span>'+load[k]+' '+esc(k)+'</span>').join('')+'</div>':'<p><b>Route done! 🎉</b></p>')+
         '<div class="row" style="flex-wrap:wrap">'+routeLinks(stops).map(l=>'<a class="btn small" target="_blank" rel="noopener" href="'+esc(l.u)+'">Directions: '+l.label+'</a>').join('')+'</div>'+
         '<button class="btn" id="rtEnd" style="width:100%">End route (show all houses)</button></div>'}
-    const plan=planRoutes(per);
-    body+='<div class="row" style="align-items:center"><label for="perLoad" style="flex:1;font-weight:600">Items that fit in one truckload</label><input type="number" id="perLoad" min="5" max="400" value="'+per+'" style="width:90px;text-align:center"></div>'+
-      '<p class="hint" style="margin-top:-8px">'+(plan.length?'Everything left splits into '+plan.length+' route'+(plan.length===1?'':'s')+'. Nearby houses are grouped in driving order, starting from where the map is now.':'Nothing left to deliver. 🎉')+'</p>'+
+    const plan=planRoutes(per,start);
+    body+='<div class="row" style="align-items:center"><label for="perLoad" style="flex:1;font-weight:600">Items per truckload</label><button class="btn small" id="perDown" aria-label="Smaller routes">\u2212</button><input type="number" id="perLoad" min="5" max="400" value="'+per+'" style="width:72px;text-align:center"><button class="btn small" id="perUp" aria-label="Bigger routes">+</button></div>'+
+      '<div class="row"><button class="btn" id="rtShuffle" style="flex:1">\ud83d\udd00 Shuffle</button>'+(lastFix?'<button class="btn" id="rtMe" style="flex:1">\ud83d\udccd Start near me</button>':'')+'</div>'+
+      '<p class="hint" style="margin-top:-8px">'+(plan.length?'Everything left splits into '+plan.length+' route'+(plan.length===1?'':'s')+'. Nearby houses are grouped in driving order, starting from '+startLabel+'.':'Nothing left to deliver. 🎉')+'</p>'+
       plan.map((r,i)=>'<div class="rcard"><h3>'+esc(r.name)+'</h3><p class="hint" style="margin:0">'+r.stops.length+' stop'+(r.stops.length===1?'':'s')+' · '+r.items+' items'+(r.due?' · '+money(r.due)+' to collect':'')+'</p>'+
         (r.streets.length?'<p class="hint" style="margin:0">'+r.streets.slice(0,4).map(esc).join(', ')+(r.streets.length>4?' and more':'')+'</p>':'')+
         '<p class="label" style="margin:4px 0 0">Load in the truck</p><div class="rload">'+Object.keys(r.load).map(k=>'<span>'+r.load[k]+' '+esc(k)+'</span>').join('')+'</div>'+
         '<button class="btn primary" data-start="'+i+'">Start '+esc(r.name)+'</button></div>').join('');
     sheet.querySelector('.sh-body').innerHTML=body;
-    const pl=sheet.querySelector('#perLoad');pl.addEventListener('change',()=>{per=Math.max(5,Math.min(400,+pl.value||40));try{localStorage.setItem('sdm.perload',per)}catch(e){}draw()});
+    const setPer=v=>{per=Math.max(5,Math.min(400,v||40));try{localStorage.setItem('sdm.perload',per)}catch(e){}draw()};
+    const pl=sheet.querySelector('#perLoad');pl.addEventListener('change',()=>setPer(+pl.value));
+    sheet.querySelector('#perDown').addEventListener('click',()=>setPer(per-5));sheet.querySelector('#perUp').addEventListener('click',()=>setPer(per+5));
+    // shuffle: start the grouping from a random house still waiting, so the routes come out different
+    sheet.querySelector('#rtShuffle').addEventListener('click',()=>{const all=routeStops('all');if(!all.length)return;const pick=all[Math.floor(Math.random()*all.length)];start=pick.h.c;startLabel=(addrOf(pick.h)||'a random house')+' (shuffled)';draw();toast('Routes shuffled')});
+    const me=sheet.querySelector('#rtMe');if(me)me.addEventListener('click',()=>{start=lastFix;startLabel='where you are';draw();toast('Route 1 starts near you')});
     sheet.querySelectorAll('[data-start]').forEach(b=>b.addEventListener('click',()=>{const r=plan[+b.getAttribute('data-start')];ROUTE={name:r.name,hids:r.hids};saveRoute();restyleAll();closeSheet();
       const g=L.latLngBounds(r.stops.map(st=>st.h.c));if(g.isValid())map.fitBounds(g.pad(.15));toast(r.name+' started')}));
     const en=sheet.querySelector('#rtEnd');if(en)en.addEventListener('click',()=>{ROUTE=null;saveRoute();restyleAll();draw();toast('Route ended')});
