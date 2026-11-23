@@ -60,6 +60,12 @@ button{cursor:pointer}
 .banner .spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.banner .spin{animation:none}}
+.nearpill{position:absolute;left:12px;right:76px;bottom:18px;z-index:640;border:0;border-radius:16px;background:var(--surface);color:var(--ink);box-shadow:var(--shadow);padding:12px 14px;font:500 15px/1.3 var(--body);text-align:left;display:flex;flex-wrap:wrap;gap:4px;align-items:center;cursor:pointer}
+.nearpill .due{color:#e03131;font-weight:700}.nearpill .go{margin-left:auto;background:#2f9e44;color:#fff;border-radius:999px;padding:6px 12px;font-weight:700}
+.me-ic{background:none;border:0}.me-dot{width:22px;height:22px;border-radius:50%;background:#1c7ed6;border:4px solid #fff;box-shadow:0 0 0 2px rgba(28,126,214,.35),0 2px 8px rgba(0,0,0,.45);animation:mepulse 2s infinite}
+@keyframes mepulse{0%{box-shadow:0 0 0 0 rgba(28,126,214,.5),0 2px 8px rgba(0,0,0,.45)}70%{box-shadow:0 0 0 14px rgba(28,126,214,0),0 2px 8px rgba(0,0,0,.45)}100%{box-shadow:0 0 0 0 rgba(28,126,214,0),0 2px 8px rgba(0,0,0,.45)}}
+@media (prefers-reduced-motion:reduce){.me-dot{animation:none}}
+#fabLocate.follow{background:#1c7ed6;color:#fff}
 .updpill{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;z-index:650;display:flex;gap:10px;align-items:center;border:0;background:#1c7ed6;color:#fff;font:600 15px/1 var(--body);padding:12px 18px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.3);white-space:nowrap;cursor:pointer}
 .updpill b{background:rgba(255,255,255,.22);padding:6px 10px;border-radius:999px}
 .toast{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;z-index:600;background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 4px 14px rgba(0,0,0,.25)}
@@ -174,6 +180,11 @@ body.helper .tally .tchip:not(.warn){opacity:.9}
 .dl.pk{border:3px solid #2f9e44;background:#f1ecff}
 .dl.hold,.dl.pk.hold{border-color:#1971c2;border-width:4px}
 .dl.hold.owe,.dl.pk.hold.owe{border-color:#e03131}
+.tchip.rt{border:0;background:#0b7285;color:#fff;cursor:pointer;font-weight:700}.tchip.rt.on{background:#12b886}
+.rcard{border-radius:16px;padding:14px;background:color-mix(in srgb,var(--ink) 4%,var(--surface));display:flex;flex-direction:column;gap:8px}
+.rcard.on{box-shadow:0 0 0 2px #12b886 inset}
+.rcard h3{margin:0;font:800 18px/1.2 var(--head)}
+.rload{display:flex;flex-wrap:wrap;gap:6px}.rload span{background:color-mix(in srgb,var(--ink) 9%,var(--surface));border-radius:999px;padding:5px 10px;font-weight:700;font-size:14px}
 .tchip.itf{border:0;background:#1971c2;color:#fff;cursor:pointer}
 .dfpop label{gap:12px}.dfpop label span{flex:1}.dfpop small{color:rgba(255,255,255,.6);font-weight:500}.dl.pk.owe{border-color:#e03131;border-width:3px;background:#fff0f0}
 .tchip.dv{background:#ffb300;color:#2b1d00}.tchip.dv b{color:#2b1d00}.dl .pktag{display:block;font-size:11px;font-weight:700;color:#7048e8}.dhow .chip{min-height:44px;justify-content:center;font-size:14px}
@@ -440,6 +451,7 @@ textarea:focus,input[type=text]:focus,input[type=number]:focus,select:focus{bord
       </button>
     </div>
     <div class="toast" id="toast" hidden></div>
+    <button type="button" class="nearpill" id="nearPill" hidden></button>
     <button type="button" class="updpill" id="updPill" hidden>New version ready <b>Refresh</b></button>
     <section class="sheet" id="sheet" hidden aria-modal="false"></section>
   </div>
@@ -604,6 +616,11 @@ function orderOf(key){const m=mark(S.active,key);if(!m)return null;const items=[
   return{items,legacy,m,due:m.paid?0:(m.items?itemsTotal(S.active,m.items):(+m.sale||0))+(+m.don||0)}}
 function houseOrders(hid){const h=H[hid];if(!h||h.x)return[];if(hasUnits(h)){const sh=unitShort(h);return h.u.map((u,i)=>({u,short:sh[i],key:hid+'|'+u,o:orderOf(hid+'|'+u)})).filter(x=>x.o)}
   const o=orderOf(hid);return o?[{u:null,key:hid,o}]:[]}
+let ROUTE=(()=>{try{return JSON.parse(localStorage.getItem('sdm.route')||'null')}catch(e){return null}})();
+function saveRoute(){try{if(ROUTE)localStorage.setItem('sdm.route',JSON.stringify(ROUTE));else localStorage.removeItem('sdm.route')}catch(e){}}
+function isBlue(list){if(!list.length)return false;const hid=list[0].key.split('|')[0];
+  if(ROUTE&&ROUTE.hids)return !ROUTE.hids.includes(hid);return !!DSKIP.length&&!onHold(list)}
+function routeLeft(){if(!ROUTE)return 0;let n=0;for(const hid of ROUTE.hids){const l=H[hid]?houseOrders(hid):[];if(l.some(x=>!x.o.m.delivered))n++}return n}
 function holdCount(){let n=0;for(const hid in H){if(H[hid].x)continue;const l=houseOrders(hid);if(l.length&&!l.every(x=>x.o.m.delivered)&&onHold(l))n++}return n}
 // items picked in the delivery filter (this phone only). Houses still needing one of them get a blue border.
 let DSKIP=(()=>{try{return JSON.parse(localStorage.getItem('sdm.dpick')||'[]')}catch(e){return []}})();
@@ -616,7 +633,7 @@ function delStyle(list,sel){
   const owes=list.some(x=>!x.o.m.paid&&x.o.due>0);
   if(list.every(x=>x.o.m.delivered))return{color:sel?cssv('--accent'):(owes?'#e03131':'#868e96'),weight:sel?3.5:(owes?3:1.5),opacity:.9,fillColor:'#adb5bd',fillOpacity:.45};
   const pk=list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');
-  const blue=!!DSKIP.length&&!onHold(list);
+  const blue=isBlue(list);
   if(pk)return{color:sel?cssv('--accent'):(owes?'#e03131':blue?'#1971c2':'#2f9e44'),weight:sel?3.5:(owes?4:2.5),opacity:1,fillColor:'#9775fa',fillOpacity:.85};
   return{color:sel?cssv('--accent'):(owes?'#e03131':blue?'#1971c2':'#2f9e44'),weight:sel?3.5:(owes||blue?4:3),opacity:1,fillColor:'#ffb300',fillOpacity:.9};
 }
@@ -761,7 +778,7 @@ function drawHouses(){
 function drawDeliveryLabels(){
   if(map.getZoom()<16)return;const b=map.getBounds().pad(.1);const full=map.getZoom()>=18;
   for(const id in H){const h=H[id];if(!inView(b,h))continue;const list=houseOrders(id);if(!list.length)continue;
-    const owe=list.some(x=>!x.o.m.paid&&x.o.due>0);const done=list.every(x=>x.o.m.delivered);const hold=!done&&!!DSKIP.length&&!onHold(list);const pk=!done&&list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');let n=0,due=0;
+    const owe=list.some(x=>!x.o.m.paid&&x.o.due>0);const done=list.every(x=>x.o.m.delivered);const hold=!done&&isBlue(list);const pk=!done&&list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');let n=0,due=0;
     let html='<div class="dl'+(done?' done':'')+(pk?' pk':'')+(owe?' owe':'')+(hold?' hold':'')+'">'+(pk?'<span class="pktag">\ud83d\udce6 Pickup</span>':'')+'<span class="a">'+esc(h.n||'?')+'</span>';
     for(const x of list){due+=x.o.due;for(const it of x.o.items)n+=it.q;
       if(full){const parts=x.o.items.map(it=>'<b>'+it.q+'</b> '+esc(pcode(it.p)));if(x.o.legacy)parts.push(money(x.o.legacy)+' order');
@@ -975,7 +992,7 @@ function renderTally(){
   const m=S.marks[S.active]||{};
   if(S.deliver){let todo=0,done=0,pick=0;const left={};const prods=prodsFor(S.active);
     for(const k in m){const hid=k.split('|')[0];if(!H[hid]||H[hid].x)continue;const o=orderOf(k);if(!o)continue;if(m[k].delivered){done++;continue}if(m[k].how==='pickup'){pick++;continue}todo++;for(const it of o.items)left[it.p.id]=(left[it.p.id]||0)+it.q}
-    $('#tally').innerHTML='<button type="button" class="tchip share" id="shareRoute">\u2197 Share route</button><span class="tchip dv">To deliver <b>'+todo+'</b></span><button type="button" class="tchip itf" id="itemFilter">'+(DSKIP.length?'Ready <b>'+holdCount()+'</b>':'\u2611 Filter items')+'</button>'+(pick?'<button type="button" class="tchip pk" id="pickupList">\ud83d\udce6 Pickup <b>'+pick+'</b></button>':'')+'<span class="tchip">Delivered <b>'+done+'</b></span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #2f9e44 inset"></i>Paid</span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #e03131 inset"></i>Owes</span>'+prods.filter(p=>left[p.id]).map(p=>'<span class="tchip">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></span>').join('');
+    $('#tally').innerHTML=(ROUTE?'<button type="button" class="tchip rt on" id="routesBtn">\ud83d\uddfa '+esc(ROUTE.name)+' \u00b7 <b>'+routeLeft()+'</b> left</button>':'<button type="button" class="tchip rt" id="routesBtn">\ud83d\uddfa Routes</button>')+'<button type="button" class="tchip share" id="shareRoute">\u2197 Share route</button><span class="tchip dv">To deliver <b>'+todo+'</b></span><button type="button" class="tchip itf" id="itemFilter">'+(DSKIP.length?'Ready <b>'+holdCount()+'</b>':'\u2611 Filter items')+'</button>'+(pick?'<button type="button" class="tchip pk" id="pickupList">\ud83d\udce6 Pickup <b>'+pick+'</b></button>':'')+'<span class="tchip">Delivered <b>'+done+'</b></span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #2f9e44 inset"></i>Paid</span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #e03131 inset"></i>Owes</span>'+prods.filter(p=>left[p.id]).map(p=>'<span class="tchip">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></span>').join('');
     const t=seasonTotals(S.active);$('#money').innerHTML='<span>Delivery mode</span>'+(t.unpaid?'<span class="unp">Still to collect <b>'+money(t.unpaid)+'</b></span>':'<span>All paid</span>');return}const cnt={};for(const id in m){const st=m[id].st;if(st)cnt[st]=(cnt[st]||0)+1}
   let paid=0,unpaid=0;for(const id in m){if(m[id].paid)paid++;else if(needsPay(id))unpaid++}
   const t=seasonTotals(S.active);
@@ -1248,7 +1265,44 @@ function openItemFilter(){
   pop.querySelector('#dfAll').addEventListener('click',()=>{DSKIP=[];pop.querySelectorAll('[data-df]').forEach(i=>i.checked=false);apply()});
   setTimeout(()=>document.addEventListener('pointerdown',function off(e){if(!pop.contains(e.target)&&!e.target.closest('#itemFilter')){pop.remove();document.removeEventListener('pointerdown',off)}}),0);
 }
-document.getElementById('tally').addEventListener('click',e=>{if(e.target.closest('#itemFilter'))openItemFilter();if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
+// routes: split what is left into truckloads of nearby houses, in driving order
+function planRoutes(perLoad){
+  const stops=routeStops('all');const out=[];let cur=null;
+  for(const st of stops){const n=st.list.reduce((a,x)=>a+x.o.items.reduce((b,it)=>b+it.q,0),0)||1;
+    if(!cur||(cur.items+n>perLoad&&cur.stops.length)){cur={stops:[],items:0};out.push(cur)}cur.stops.push(st);cur.items+=n}
+  return out.map((r,i)=>{const load={};let due=0;const streets=[];
+    r.stops.forEach(st=>{st.list.forEach(x=>{x.o.items.forEach(it=>{const c=pcode(it.p);load[c]=(load[c]||0)+it.q});if(!x.o.m.paid)due+=x.o.due||0});const sn=st.h.s||'';if(sn&&!streets.includes(sn))streets.push(sn)});
+    return{name:'Route '+(i+1),hids:r.stops.map(st=>st.hid),stops:r.stops,items:r.items,load,due,streets}})}
+function routeLinks(stops){const links=[];for(let i=0;i<stops.length;i+=10){const ch=stops.slice(i,i+10);const ll=ch.map(x=>x.h.c[0].toFixed(6)+','+x.h.c[1].toFixed(6));
+  let u='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+ll[ll.length-1];if(ll.length>1)u+='&waypoints='+encodeURIComponent(ll.slice(0,-1).join('|'));
+  links.push({label:ch.length===1?'Stop '+(i+1):'Stops '+(i+1)+' to '+(i+ch.length),u})}return links}
+function openRoutes(){
+  sheetKind='routes';let per=40;try{per=+localStorage.getItem('sdm.perload')||40}catch(e){}
+  const draw=()=>{
+    let body='';
+    if(ROUTE){const stops=ROUTE.hids.filter(h=>H[h]).map(hid=>({hid,h:H[hid],list:houseOrders(hid).filter(x=>!x.o.m.delivered&&x.o.m.how!=='pickup')})).filter(st=>st.list.length);
+      const load={};let due=0;stops.forEach(st=>st.list.forEach(x=>{x.o.items.forEach(it=>{const c=pcode(it.p);load[c]=(load[c]||0)+it.q});if(!x.o.m.paid)due+=x.o.due||0}));
+      body+='<div class="rcard on"><h3>'+esc(ROUTE.name)+' is on</h3><p class="hint" style="margin:0">'+stops.length+' stop'+(stops.length===1?'':'s')+' left'+(due?' · '+money(due)+' to collect':'')+'. Houses outside this route are blue.</p>'+
+        (Object.keys(load).length?'<p class="label" style="margin:4px 0 0">Still in the truck for this route</p><div class="rload">'+Object.keys(load).map(k=>'<span>'+load[k]+' '+esc(k)+'</span>').join('')+'</div>':'<p><b>Route done! 🎉</b></p>')+
+        '<div class="row" style="flex-wrap:wrap">'+routeLinks(stops).map(l=>'<a class="btn small" target="_blank" rel="noopener" href="'+esc(l.u)+'">Directions: '+l.label+'</a>').join('')+'</div>'+
+        '<button class="btn" id="rtEnd" style="width:100%">End route (show all houses)</button></div>'}
+    const plan=planRoutes(per);
+    body+='<div class="row" style="align-items:center"><label for="perLoad" style="flex:1;font-weight:600">Items that fit in one truckload</label><input type="number" id="perLoad" min="5" max="400" value="'+per+'" style="width:90px;text-align:center"></div>'+
+      '<p class="hint" style="margin-top:-8px">'+(plan.length?'Everything left splits into '+plan.length+' route'+(plan.length===1?'':'s')+'. Nearby houses are grouped in driving order, starting from where the map is now.':'Nothing left to deliver. 🎉')+'</p>'+
+      plan.map((r,i)=>'<div class="rcard"><h3>'+esc(r.name)+'</h3><p class="hint" style="margin:0">'+r.stops.length+' stop'+(r.stops.length===1?'':'s')+' · '+r.items+' items'+(r.due?' · '+money(r.due)+' to collect':'')+'</p>'+
+        (r.streets.length?'<p class="hint" style="margin:0">'+r.streets.slice(0,4).map(esc).join(', ')+(r.streets.length>4?' and more':'')+'</p>':'')+
+        '<p class="label" style="margin:4px 0 0">Load in the truck</p><div class="rload">'+Object.keys(r.load).map(k=>'<span>'+r.load[k]+' '+esc(k)+'</span>').join('')+'</div>'+
+        '<button class="btn primary" data-start="'+i+'">Start '+esc(r.name)+'</button></div>').join('');
+    sheet.querySelector('.sh-body').innerHTML=body;
+    const pl=sheet.querySelector('#perLoad');pl.addEventListener('change',()=>{per=Math.max(5,Math.min(400,+pl.value||40));try{localStorage.setItem('sdm.perload',per)}catch(e){}draw()});
+    sheet.querySelectorAll('[data-start]').forEach(b=>b.addEventListener('click',()=>{const r=plan[+b.getAttribute('data-start')];ROUTE={name:r.name,hids:r.hids};saveRoute();restyleAll();closeSheet();
+      const g=L.latLngBounds(r.stops.map(st=>st.h.c));if(g.isValid())map.fitBounds(g.pad(.15));toast(r.name+' started')}));
+    const en=sheet.querySelector('#rtEnd');if(en)en.addEventListener('click',()=>{ROUTE=null;saveRoute();restyleAll();draw();toast('Route ended')});
+  };
+  openSheet('<div class="sh-head"><div class="sh-title"><h2>Routes</h2><p>What to load, and which houses go together</p></div>'+X+'</div><div class="sh-body"></div>',true);
+  draw();
+}
+document.getElementById('tally').addEventListener('click',e=>{if(e.target.closest('#routesBtn'))openRoutes();if(e.target.closest('#itemFilter'))openItemFilter();if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
 function openPickups(){
   sheetKind='pickups';const m=S.marks[S.active]||{};const rows=[];
   for(const k in m){const hid=k.split('|')[0];if(!H[hid]||m[k].delivered||m[k].how!=='pickup')continue;const o=orderOf(k);if(!o)continue;
@@ -1694,25 +1748,56 @@ $('#searchClr').addEventListener('click',()=>{$('#searchIn').value='';renderSear
 map.on('movestart',()=>{$('#searchRes').hidden=true});
 /* delivery mode toggle */
 function setDeliver(on){S.deliver=on;saveS();$('#fabDeliver').classList.toggle('on',on);if(sheetKind==='house')closeSheet();restyleAll();
+  try{if(on){if(localStorage.getItem('sdm.track'))startTracking(true);if(watchId!==null)keepAwake(true)}else{showNear(null);keepAwake(false)}}catch(e){}
   toast(on?'Delivery mode: yellow houses still need their order. Tap one to see it.':'Delivery mode off')}
 $('#fabDeliver').addEventListener('click',()=>setDeliver(!S.deliver));
 $('#fabDeliver').classList.toggle('on',!!S.deliver);
 /* base toggle */
 $('#fabBase').addEventListener('click',()=>{S.base=S.base==='street'?'satellite':'street';saveS();setBase()});
 
-/* locate */
-let watchId=null,meDot=null,meRing=null,firstFix=false;
-$('#fabLocate').addEventListener('click',()=>{
-  if(!('geolocation' in navigator)){toast('This browser cannot share your location.');return}
-  if(watchId!==null){if(meDot)map.flyTo(meDot.getLatLng(),Math.max(map.getZoom(),18));return}
-  firstFix=false;$('#fabLocate').classList.add('on');
+/* locate: live dot, follow mode, and which delivery house you are in front of */
+let watchId=null,meDot=null,meRing=null,firstFix=false,follow=false,lastFix=null,wakeLock=null,progMove=false;
+function meIcon(){return L.divIcon({className:'me-ic',html:'<div class="me-dot"></div>',iconSize:[22,22],iconAnchor:[11,11]})}
+async function keepAwake(on){try{if(on&&'wakeLock' in navigator&&!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null})}else if(!on&&wakeLock){await wakeLock.release();wakeLock=null}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&watchId!==null&&S.deliver)keepAwake(true)});
+function setFollow(on){follow=on;const b=$('#fabLocate');b.classList.toggle('on',watchId!==null);b.classList.toggle('follow',on);b.setAttribute('aria-label',on?'Following your location':'Show my location')}
+function nearHouse(ll,acc){if(!S.deliver)return null;let best=null,bd=1e9;
+  for(const hid in H){const h=H[hid];if(!h||h.x||!h.c)continue;const l=houseOrders(hid);if(!l.length||l.every(x=>x.o.m.delivered))continue;
+    const d=metersBetween({lat:ll[0],lng:ll[1]},h.c);if(d<bd){bd=d;best=hid}}
+  return best&&bd<=Math.max(35,Math.min(acc||0,60))?best:null}
+function showNear(hid){const el=$('#nearPill');if(!hid){el.hidden=true;el.removeAttribute('data-hid');return}
+  if(el.getAttribute('data-hid')===hid&&!el.hidden)return;
+  const l=houseOrders(hid).filter(x=>!x.o.m.delivered);const items=l.reduce((a,x)=>a+x.o.items.reduce((b,it)=>b+it.q,0),0);const due=l.reduce((a,x)=>a+(!x.o.m.paid?(x.o.due||0):0),0);
+  el.innerHTML='📍 You are at <b>'+esc(addrOf(H[hid])||'this house')+'</b> · '+items+' item'+(items===1?'':'s')+(due?' · <span class="due">'+money(due)+' due</span>':'')+'<span class="go">Open</span>';
+  el.setAttribute('data-hid',hid);el.hidden=false}
+function startTracking(quiet){
+  if(!('geolocation' in navigator)){if(!quiet)toast('This browser cannot share your location.');return}
+  if(watchId!==null)return;
+  firstFix=false;
   watchId=navigator.geolocation.watchPosition(p=>{
-    const ll=[p.coords.latitude,p.coords.longitude];
-    if(!meDot){meRing=L.circle(ll,{radius:p.coords.accuracy,color:'#1c7ed6',weight:1,fillOpacity:.1,interactive:false,renderer}).addTo(map);meDot=L.circleMarker(ll,{radius:7,color:'#fff',weight:3,fillColor:'#1c7ed6',fillOpacity:1,interactive:false,renderer}).addTo(map)}
+    const ll=[p.coords.latitude,p.coords.longitude];lastFix=ll;
+    if(!meDot){meRing=L.circle(ll,{radius:p.coords.accuracy,color:'#1c7ed6',weight:1,fillOpacity:.1,interactive:false,renderer}).addTo(map);meDot=L.marker(ll,{icon:meIcon(),interactive:false,keyboard:false,zIndexOffset:10000}).addTo(map)}
     else{meDot.setLatLng(ll);meRing.setLatLng(ll).setRadius(p.coords.accuracy)}
-    if(!firstFix){firstFix=true;map.flyTo(ll,18)}
-  },err=>{toast(err.code===1?'Location is turned off for this site. Allow it in your browser settings.':'Could not find your location.');$('#fabLocate').classList.remove('on');if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=null},{enableHighAccuracy:true,maximumAge:5000});
-});
+    if(!firstFix){firstFix=true;progMove=true;map.setView(ll,Math.max(map.getZoom(),18));setTimeout(()=>progMove=false,400)}
+    else if(follow){progMove=true;map.panTo(ll,{animate:true,duration:.6});setTimeout(()=>progMove=false,800)}
+    showNear(nearHouse(ll,p.coords.accuracy));
+  },err=>{if(!quiet||err.code!==1)toast(err.code===1?'Location is turned off for this site. Allow it in your browser settings.':'Could not find your location.');stopTracking()},{enableHighAccuracy:true,maximumAge:3000});
+  setFollow(true);
+  try{localStorage.setItem('sdm.track','1')}catch(e){}
+  if(S.deliver)keepAwake(true);
+}
+function stopTracking(){if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=null;setFollow(false);showNear(null);keepAwake(false);
+  if(meDot){map.removeLayer(meDot);map.removeLayer(meRing);meDot=meRing=null}}
+$('#fabLocate').addEventListener('click',()=>{
+  if(watchId===null){startTracking(false);return}
+  if(!follow){setFollow(true);if(lastFix){progMove=true;map.flyTo(lastFix,Math.max(map.getZoom(),18));setTimeout(()=>progMove=false,1500)}return}
+  // already following: a second tap turns tracking off
+  stopTracking();try{localStorage.removeItem('sdm.track')}catch(e){}toast('Location off')});
+// dragging the map yourself stops following until you tap the button again
+map.on('dragstart',()=>{if(follow&&!progMove)setFollow(false)});
+$('#nearPill').addEventListener('click',()=>{const hid=$('#nearPill').getAttribute('data-hid');if(hid&&H[hid]){selected=hid;openDelivery(hid)}});
+// in delivery mode, turn tracking back on if it was on before
+setTimeout(()=>{try{if(S.deliver&&localStorage.getItem('sdm.track'))startTracking(true)}catch(e){}},1500);
 
 /* map events */
 let moveT;
