@@ -1866,7 +1866,9 @@ $('#fabLocate').addEventListener('click',()=>{
   // already following: a second tap turns tracking off
   stopTracking();try{localStorage.removeItem('sdm.track');localStorage.setItem('sdm.trackoff','1')}catch(e){}toast('Location off. Tap again to turn it back on.')});
 // dragging the map yourself stops following until you tap the button again
-map.on('dragstart',()=>{if(follow&&!progMove)setFollow(false)});
+// any touch, drag, pinch or scroll on the map means you want to look around: stop following until the locate button is tapped
+['pointerdown','touchstart','wheel'].forEach(ev=>map.getContainer().addEventListener(ev,e=>{if(follow&&!e.target.closest('.leaflet-control'))setFollow(false)},{passive:true}));
+map.on('dragstart zoomstart',()=>{if(follow&&!progMove)setFollow(false)});
 $('#nearPill').addEventListener('click',()=>{const hid=$('#nearPill').getAttribute('data-hid');if(hid&&H[hid]){selected=hid;openDelivery(hid)}});
 // in delivery mode, turn tracking back on if it was on before
 setTimeout(()=>{try{if(localStorage.getItem('sdm.trackoff')!=='1')startTracking(true,!S.deliver)}catch(e){}},1500);
