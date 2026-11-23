@@ -60,6 +60,7 @@ button{cursor:pointer}
 .banner .spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.banner .spin{animation:none}}
+.stopnum-ic{background:none;border:0}.stopnum{width:30px;height:30px;border-radius:50%;background:#0b7285;color:#fff;border:3px solid #fff;display:grid;place-items:center;font:800 14px/1 var(--head);box-shadow:0 2px 6px rgba(0,0,0,.4)}.stopnum.first{background:#2f9e44;width:34px;height:34px}
 .rtbar{position:absolute;left:12px;right:12px;bottom:18px;z-index:660;background:var(--surface);color:var(--ink);border-radius:18px;box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:10px}
 .rtbar .due{color:#e03131;font-weight:700}.rtb-t{font-size:15px}.rtb-load{margin-top:4px;font-weight:700;font-size:14px;color:var(--muted)}
 .nearpill{position:absolute;left:12px;right:76px;bottom:18px;z-index:640;border:0;border-radius:16px;background:var(--surface);color:var(--ink);box-shadow:var(--shadow);padding:12px 14px;font:500 15px/1.3 var(--body);text-align:left;display:flex;flex-wrap:wrap;gap:4px;align-items:center;cursor:pointer}
@@ -623,7 +624,21 @@ function houseOrders(hid){const h=H[hid];if(!h||h.x)return[];if(hasUnits(h)){con
 let ROUTE=(()=>{try{return JSON.parse(localStorage.getItem('sdm.route')||'null')}catch(e){return null}})();
 function saveRoute(){try{if(ROUTE)localStorage.setItem('sdm.route',JSON.stringify(ROUTE));else localStorage.removeItem('sdm.route')}catch(e){}}
 let PREVIEW=null;
-function syncRouting(){document.body.classList.toggle('routing',!!(PREVIEW||ROUTE))}
+let routeLayer=null;
+function drawRouteOverlay(){
+  if(!routeLayer)routeLayer=L.layerGroup().addTo(map);routeLayer.clearLayers();
+  const R=PREVIEW||(S.deliver?ROUTE:null);if(!R)return;
+  const stops=R.hids.filter(h=>H[h]&&H[h].c).map(hid=>({hid,h:H[hid],done:houseOrders(hid).every(x=>x.o.m.delivered)}));
+  let todo=stops.filter(st=>!st.done);if(!todo.length)return;
+  // driving order from where you are now (or from the route's first stop)
+  todo=orderStops(todo,(typeof lastFix!=='undefined'&&lastFix)||todo[0].h.c);
+  const pts=todo.map(st=>st.h.c);
+  L.polyline(pts,{color:'#fff',weight:9,opacity:.9,interactive:false,lineJoin:'round'}).addTo(routeLayer);
+  L.polyline(pts,{color:'#0b7285',weight:5,opacity:.95,interactive:false,lineJoin:'round'}).addTo(routeLayer);
+  todo.forEach((st,i)=>L.marker(st.h.c,{icon:L.divIcon({className:'stopnum-ic',html:'<div class="stopnum'+(i===0?' first':'')+'">'+(i+1)+'</div>',iconSize:[30,30],iconAnchor:[15,15]}),zIndexOffset:9000,keyboard:false})
+    .on('click',()=>{selected=st.hid;openDelivery(st.hid)}).addTo(routeLayer));
+}
+function syncRouting(){document.body.classList.toggle('routing',!!(PREVIEW||ROUTE));drawRouteOverlay()}
 function isBlue(list){if(!list.length)return false;const hid=list[0].key.split('|')[0];
   if(PREVIEW)return !PREVIEW.hids.includes(hid);
   if(ROUTE&&ROUTE.hids)return !ROUTE.hids.includes(hid);return !!DSKIP.length&&!onHold(list)}
@@ -762,7 +777,7 @@ function keyNoScout(k){const m=mark(S.active,k);return !!(m&&!m.seller&&(m.st||+
 function houseNoScout(hid){const h=H[hid];if(!h)return false;if(hasUnits(h))return h.u.some(u=>keyNoScout(hid+'|'+u));return keyNoScout(hid)}
 function removeHalo(hid){if(noscout[hid]){houseLayer.removeLayer(noscout[hid]);delete noscout[hid]}removeSlices(hid);if(halos[hid]){houseLayer.removeLayer(halos[hid]);delete halos[hid]}if(stars[hid]){houseLayer.removeLayer(stars[hid]);delete stars[hid]}}
 function updateHalo(hid){
-  const on=!!polys[hid];
+  const on=!!polys[hid]&&!S.deliver;
   if(on&&houseNeedsPay(hid)){if(!halos[hid])halos[hid]=L.circleMarker(H[hid].c,{radius:19,color:'#e03131',weight:3,opacity:.95,dashArray:'6 4',fill:false,interactive:false,renderer}).addTo(houseLayer)}
   else if(halos[hid]){houseLayer.removeLayer(halos[hid]);delete halos[hid]}
   if(on&&houseBig(hid)){if(!stars[hid])stars[hid]=L.marker(H[hid].c,{icon:L.divIcon({className:'star-ic',html:'<div aria-hidden="true">\u2605</div>',iconSize:[20,20],iconAnchor:[-6,24]}),interactive:false,keyboard:false,zIndexOffset:500}).addTo(houseLayer)}
@@ -1273,13 +1288,39 @@ function openItemFilter(){
   setTimeout(()=>document.addEventListener('pointerdown',function off(e){if(!pop.contains(e.target)&&!e.target.closest('#itemFilter')){pop.remove();document.removeEventListener('pointerdown',off)}}),0);
 }
 // routes: split what is left into truckloads of nearby houses, in driving order
-function planRoutes(perLoad,start){
-  const stops=routeStops('all',start);const out=[];let cur=null;
-  for(const st of stops){const n=st.list.reduce((a,x)=>a+x.o.items.reduce((b,it)=>b+it.q,0),0)||1;
-    if(!cur||(cur.items+n>perLoad&&cur.stops.length)){cur={stops:[],items:0};out.push(cur)}cur.stops.push(st);cur.items+=n}
-  return out.map((r,i)=>{const load={};let due=0;const streets=[];
-    r.stops.forEach(st=>{st.list.forEach(x=>{x.o.items.forEach(it=>{const c=pcode(it.p);load[c]=(load[c]||0)+it.q});if(!x.o.m.paid)due+=x.o.due||0});const sn=st.h.s||'';if(sn&&!streets.includes(sn))streets.push(sn)});
-    return{name:'Route '+(i+1),hids:r.stops.map(st=>st.hid),stops:r.stops,items:r.items,load,due,streets}})}
+function itemsAt(st){return st.list.reduce((a,x)=>a+x.o.items.reduce((b,it)=>b+it.q,0),0)||1}
+function splitArea(stops,per,ang){
+  const tot=stops.reduce((a,st)=>a+st.n,0);if(tot<=per||stops.length<=1)return[stops];
+  const ca=Math.cos(ang),sa=Math.sin(ang),k=Math.cos(stops[0].h.c[0]*Math.PI/180);
+  const xy=st=>{const x=st.h.c[1]*k,y=st.h.c[0];return[x*ca-y*sa,x*sa+y*ca]};
+  let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;stops.forEach(st=>{const[x,y]=xy(st);mnx=Math.min(mnx,x);mxx=Math.max(mxx,x);mny=Math.min(mny,y);mxy=Math.max(mxy,y)});
+  const ax=(mxx-mnx)>=(mxy-mny)?0:1;const sorted=stops.slice().sort((a,b)=>xy(a)[ax]-xy(b)[ax]);
+  // cut where the first side holds a whole number of truckloads, as close to half as possible
+  const loads=Math.ceil(tot/per),target=Math.ceil(loads/2)*per*(tot/(loads*per));let run=0,cut=1;
+  for(let i=0;i<sorted.length-1;i++){run+=sorted[i].n;cut=i+1;if(run>=target)break}
+  return splitArea(sorted.slice(0,cut),per,ang).concat(splitArea(sorted.slice(cut),per,ang))}
+function orderStops(stops,from){const left=stops.slice(),out=[];let cur=from;from=from||(stops[0]&&stops[0].h.c);
+  const d=(a,c)=>{const k=Math.cos(a[0]*Math.PI/180);return (a[0]-c[0])**2+((a[1]-c[1])*k)**2};
+  while(left.length){let bi=0;for(let i=1;i<left.length;i++)if(d(left[i].h.c,cur)<d(left[bi].h.c,cur))bi=i;const nx=left.splice(bi,1)[0];out.push(nx);cur=nx.h.c}
+  // untangle: flip any stretch of the path that makes it cross itself or double back
+  const D=(a,b)=>Math.sqrt(d(a,b));const P=i=>i<0?from:out[i].h.c;
+  for(let pass=0,better=true;better&&pass<40;pass++){better=false;
+    for(let i=0;i<out.length-1;i++)for(let j=i+1;j<out.length;j++){
+      const a0=P(i-1),a1=P(i),b0=P(j),b1=j+1<out.length?P(j+1):null;
+      const before=D(a0,a1)+(b1?D(b0,b1):0),after=D(a0,b0)+(b1?D(a1,b1):0);
+      if(after<before-1e-12){out.splice(i,j-i+1,...out.slice(i,j+1).reverse());better=true}}}
+  return out}
+function planRoutes(perLoad,start,ang){
+  let from=start;if(!from){const mc=map.getCenter();from=[mc.lat,mc.lng]}
+  const all=routeStops('all',from);all.forEach(st=>st.n=itemsAt(st));if(!all.length)return[];
+  const groups=splitArea(all,perLoad,ang||0);
+  const d=(a,c)=>{const k=Math.cos(a[0]*Math.PI/180);return (a[0]-c[0])**2+((a[1]-c[1])*k)**2};
+  // closest group first; inside each group, drive from the end nearest where you are coming from
+  const left=groups.slice(),ordered=[];let cur=from;
+  while(left.length){let bi=0,bd=1e18;left.forEach((g,i)=>{const m=Math.min(...g.map(st=>d(st.h.c,cur)));if(m<bd){bd=m;bi=i}});const g=orderStops(left.splice(bi,1)[0],cur);ordered.push(g);cur=g[g.length-1].h.c}
+  return ordered.map((stops,i)=>{const load={};let due=0;const streets=[];let items=0;
+    stops.forEach(st=>{items+=st.n;st.list.forEach(x=>{x.o.items.forEach(it=>{const c=pcode(it.p);load[c]=(load[c]||0)+it.q});if(!x.o.m.paid)due+=x.o.due||0});const sn=st.h.s||'';if(sn&&!streets.includes(sn))streets.push(sn)});
+    return{name:'Route '+(i+1),hids:stops.map(st=>st.hid),stops,items,load,due,streets}})}
 function routeLinks(stops){const links=[];for(let i=0;i<stops.length;i+=10){const ch=stops.slice(i,i+10);const ll=ch.map(x=>x.h.c[0].toFixed(6)+','+x.h.c[1].toFixed(6));
   let u='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+ll[ll.length-1];if(ll.length>1)u+='&waypoints='+encodeURIComponent(ll.slice(0,-1).join('|'));
   links.push({label:ch.length===1?'Stop '+(i+1):'Stops '+(i+1)+' to '+(i+ch.length),u})}return links}
@@ -1298,7 +1339,7 @@ function previewRoute(r){
 let RSTART={c:null,label:'where the map is now'};
 function openRoutes(){
   sheetKind='routes';let per=40;try{per=+localStorage.getItem('sdm.perload')||40}catch(e){}
-  let start=RSTART.c,startLabel=RSTART.label;
+  let start=RSTART.c,startLabel=RSTART.label,ang=RSTART.ang||0;
   const draw=()=>{
     let body='';
     if(ROUTE){const stops=ROUTE.hids.filter(h=>H[h]).map(hid=>({hid,h:H[hid],list:houseOrders(hid).filter(x=>!x.o.m.delivered&&x.o.m.how!=='pickup')})).filter(st=>st.list.length);
@@ -1307,7 +1348,7 @@ function openRoutes(){
         (Object.keys(load).length?'<p class="label" style="margin:4px 0 0">Still in the truck for this route</p><div class="rload">'+Object.keys(load).map(k=>'<span>'+load[k]+' '+esc(k)+'</span>').join('')+'</div>':'<p><b>Route done! 🎉</b></p>')+
         '<div class="row" style="flex-wrap:wrap">'+routeLinks(stops).map(l=>'<a class="btn small" target="_blank" rel="noopener" href="'+esc(l.u)+'">Directions: '+l.label+'</a>').join('')+'</div>'+
         '<button class="btn" id="rtEnd" style="width:100%">End route (show all houses)</button></div>'}
-    const plan=planRoutes(per,start);
+    const plan=planRoutes(per,start,ang);
     body+='<div class="row" style="align-items:center"><label for="perLoad" style="flex:1;font-weight:600">Items per truckload</label><button class="btn small" id="perDown" aria-label="Smaller routes">\u2212</button><input type="number" id="perLoad" min="5" max="400" value="'+per+'" style="width:72px;text-align:center"><button class="btn small" id="perUp" aria-label="Bigger routes">+</button></div>'+
       '<div class="row"><button class="btn" id="rtShuffle" style="flex:1">\ud83d\udd00 Shuffle</button>'+(lastFix?'<button class="btn" id="rtMe" style="flex:1">\ud83d\udccd Start near me</button>':'')+'</div>'+
       '<p class="hint" style="margin-top:-8px">'+(plan.length?'Everything left splits into '+plan.length+' route'+(plan.length===1?'':'s')+'. Nearby houses are grouped in driving order, starting from '+startLabel+'.':'Nothing left to deliver. 🎉')+'</p>'+
@@ -1320,8 +1361,8 @@ function openRoutes(){
     const pl=sheet.querySelector('#perLoad');pl.addEventListener('change',()=>setPer(+pl.value));
     sheet.querySelector('#perDown').addEventListener('click',()=>setPer(per-5));sheet.querySelector('#perUp').addEventListener('click',()=>setPer(per+5));
     // shuffle: start the grouping from a random house still waiting, so the routes come out different
-    sheet.querySelector('#rtShuffle').addEventListener('click',()=>{const all=routeStops('all');if(!all.length)return;const pick=all[Math.floor(Math.random()*all.length)];start=pick.h.c;startLabel=(addrOf(pick.h)||'a random house')+' (shuffled)';RSTART={c:start,label:startLabel};draw();toast('Routes shuffled')});
-    const me=sheet.querySelector('#rtMe');if(me)me.addEventListener('click',()=>{start=lastFix;startLabel='where you are';RSTART={c:start,label:startLabel};draw();toast('Route 1 starts near you')});
+    sheet.querySelector('#rtShuffle').addEventListener('click',()=>{ang=(ang+0.35+Math.random()*1.2)%Math.PI;RSTART={c:start,label:startLabel,ang};draw();toast('Routes shuffled')});
+    const me=sheet.querySelector('#rtMe');if(me)me.addEventListener('click',()=>{start=lastFix;startLabel='where you are';RSTART={c:start,label:startLabel,ang};draw();toast('Route 1 starts near you')});
     sheet.querySelectorAll('[data-prev]').forEach(b=>b.addEventListener('click',()=>previewRoute(plan[+b.getAttribute('data-prev')])));
     sheet.querySelectorAll('[data-start]').forEach(b=>b.addEventListener('click',()=>{const r=plan[+b.getAttribute('data-start')];PREVIEW=null;$('#rtBar').hidden=true;ROUTE={name:r.name,hids:r.hids};saveRoute();restyleAll();closeSheet();
       const g=L.latLngBounds(r.stops.map(st=>st.h.c));if(g.isValid())map.fitBounds(g.pad(.15));toast(r.name+' started')}));
@@ -1776,7 +1817,7 @@ $('#searchClr').addEventListener('click',()=>{$('#searchIn').value='';renderSear
 map.on('movestart',()=>{$('#searchRes').hidden=true});
 /* delivery mode toggle */
 function setDeliver(on){S.deliver=on;saveS();$('#fabDeliver').classList.toggle('on',on);if(sheetKind==='house')closeSheet();restyleAll();
-  try{if(on){if(localStorage.getItem('sdm.track'))startTracking(true);if(watchId!==null)keepAwake(true)}else{showNear(null);keepAwake(false)}}catch(e){}
+  try{if(on){if(localStorage.getItem('sdm.trackoff')!=='1')startTracking(true);if(watchId!==null)keepAwake(true)}else{showNear(null);keepAwake(false)}}catch(e){}
   toast(on?'Delivery mode: yellow houses still need their order. Tap one to see it.':'Delivery mode off')}
 $('#fabDeliver').addEventListener('click',()=>setDeliver(!S.deliver));
 $('#fabDeliver').classList.toggle('on',!!S.deliver);
@@ -1798,7 +1839,7 @@ function showNear(hid){const el=$('#nearPill');if(!hid){el.hidden=true;el.remove
   const l=houseOrders(hid).filter(x=>!x.o.m.delivered);const items=l.reduce((a,x)=>a+x.o.items.reduce((b,it)=>b+it.q,0),0);const due=l.reduce((a,x)=>a+(!x.o.m.paid?(x.o.due||0):0),0);
   el.innerHTML='📍 You are at <b>'+esc(addrOf(H[hid])||'this house')+'</b> · '+items+' item'+(items===1?'':'s')+(due?' · <span class="due">'+money(due)+' due</span>':'')+'<span class="go">Open</span>';
   el.setAttribute('data-hid',hid);el.hidden=false}
-function startTracking(quiet){
+function startTracking(quiet,noFollow){
   if(!('geolocation' in navigator)){if(!quiet)toast('This browser cannot share your location.');return}
   if(watchId!==null)return;
   firstFix=false;
@@ -1806,26 +1847,26 @@ function startTracking(quiet){
     const ll=[p.coords.latitude,p.coords.longitude];lastFix=ll;
     if(!meDot){meRing=L.circle(ll,{radius:p.coords.accuracy,color:'#1c7ed6',weight:1,fillOpacity:.1,interactive:false,renderer}).addTo(map);meDot=L.marker(ll,{icon:meIcon(),interactive:false,keyboard:false,zIndexOffset:10000}).addTo(map)}
     else{meDot.setLatLng(ll);meRing.setLatLng(ll).setRadius(p.coords.accuracy)}
-    if(!firstFix){firstFix=true;progMove=true;map.setView(ll,Math.max(map.getZoom(),18));setTimeout(()=>progMove=false,400)}
+    if(!firstFix){firstFix=true;if(follow){progMove=true;map.setView(ll,Math.max(map.getZoom(),18));setTimeout(()=>progMove=false,400)}}
     else if(follow){progMove=true;map.panTo(ll,{animate:true,duration:.6});setTimeout(()=>progMove=false,800)}
     showNear(nearHouse(ll,p.coords.accuracy));
   },err=>{if(!quiet||err.code!==1)toast(err.code===1?'Location is turned off for this site. Allow it in your browser settings.':'Could not find your location.');stopTracking()},{enableHighAccuracy:true,maximumAge:3000});
-  setFollow(true);
+  setFollow(!noFollow);
   try{localStorage.setItem('sdm.track','1')}catch(e){}
   if(S.deliver)keepAwake(true);
 }
 function stopTracking(){if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=null;setFollow(false);showNear(null);keepAwake(false);
   if(meDot){map.removeLayer(meDot);map.removeLayer(meRing);meDot=meRing=null}}
 $('#fabLocate').addEventListener('click',()=>{
-  if(watchId===null){startTracking(false);return}
+  if(watchId===null){try{localStorage.removeItem('sdm.trackoff')}catch(e){}startTracking(false);return}
   if(!follow){setFollow(true);if(lastFix){progMove=true;map.flyTo(lastFix,Math.max(map.getZoom(),18));setTimeout(()=>progMove=false,1500)}return}
   // already following: a second tap turns tracking off
-  stopTracking();try{localStorage.removeItem('sdm.track')}catch(e){}toast('Location off')});
+  stopTracking();try{localStorage.removeItem('sdm.track');localStorage.setItem('sdm.trackoff','1')}catch(e){}toast('Location off. Tap again to turn it back on.')});
 // dragging the map yourself stops following until you tap the button again
 map.on('dragstart',()=>{if(follow&&!progMove)setFollow(false)});
 $('#nearPill').addEventListener('click',()=>{const hid=$('#nearPill').getAttribute('data-hid');if(hid&&H[hid]){selected=hid;openDelivery(hid)}});
 // in delivery mode, turn tracking back on if it was on before
-setTimeout(()=>{try{if(S.deliver&&localStorage.getItem('sdm.track'))startTracking(true)}catch(e){}},1500);
+setTimeout(()=>{try{if(localStorage.getItem('sdm.trackoff')!=='1')startTracking(true,!S.deliver)}catch(e){}},1500);
 
 /* map events */
 let moveT;
