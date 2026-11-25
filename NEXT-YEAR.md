@@ -63,3 +63,9 @@ Kids in gymnastics, sports teams, schools and churches sell wreaths door to door
 * Sign up asks for: email, password, family name (shown on the map, like "The Smith Family"), group type and group name. The email is never shown as a name.
 * Family name and group can be changed later in Settings.
 * Families never see the overlay or any color assigned to them; nothing about the overlay appears on their side.
+
+## Houses that bought from more than one seller
+
+Seen in 2026: a house already had another scout's wreath on the porch when we delivered ours.
+* If the other seller uses the app, Brea's card for that house says "Also bought from the Smith Family" and whether theirs is delivered yet, so a wreath already on the porch isn't a surprise.
+* When selling, the overlay shows houses that already bought from someone else this season, so Brea knows before knocking.
