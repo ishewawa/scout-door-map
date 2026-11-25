@@ -373,7 +373,7 @@ body{font-size:15px;letter-spacing:-.005em}
 .fabs{right:12px;bottom:16px;gap:10px}
 .fab{width:50px;height:50px;border-radius:50%;border:0;box-shadow:var(--shadow);background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .fab svg{width:21px;height:21px}
-.updpill{background:#2563eb;box-shadow:0 8px 24px rgba(37,99,235,.45);bottom:20px}
+.updpill{background:#2563eb;box-shadow:0 8px 24px rgba(37,99,235,.45);bottom:20px;z-index:1000}
 .toast{border-radius:999px;padding:11px 16px;box-shadow:var(--shadow)}
 .banner{border-radius:var(--r);box-shadow:var(--shadow)}
 /* tab bar */
@@ -998,11 +998,12 @@ function renderTop(){
 }
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
-let pageSig=null;
-async function pageSignature(){const r=await fetch(location.pathname+'?v='+Date.now(),{cache:'no-store'});if(!r.ok)throw 0;const t=await r.text();let h=0;for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return h}
-async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine)return;try{const sig=await pageSignature();if(pageSig===null){pageSig=sig;return}if(sig!==pageSig)$('#updPill').hidden=false}catch(e){}}
-setTimeout(checkUpdate,3000);setInterval(checkUpdate,5*60000);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(checkUpdate,1500)});
+// update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
+const BUILD='20261125014822';
+async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
+  try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD)$('#updPill').hidden=false}catch(e){}}
+setTimeout(checkUpdate,2000);setInterval(()=>{if(document.visibilityState==='visible')checkUpdate()},60000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(checkUpdate,800)});
 function openTBPop(){
   let pop=document.getElementById('tbPop');if(pop){pop.remove();return}
   pop=document.createElement('div');pop.className='tbpop';pop.id='tbPop';pop.setAttribute('role','dialog');pop.setAttribute('aria-label','What the top bar shows');
