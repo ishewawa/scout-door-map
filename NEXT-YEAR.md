@@ -110,3 +110,13 @@ Leave a business card at every house that isn't home. The card has our phone num
 * Surcharge rules to follow: credit cards only (not debit or prepaid), no more than 3%, shown clearly on the order page and at checkout before they pay ("A 3% fee applies to credit card payments"). Minnesota allows up to 5% with disclosure. Check Stripe's current surcharging requirements before launch.
 * Telling credit from debit happens after the card is entered, so this likely needs the small server piece (Firebase pay as you go) or Stripe's built in surcharge tools if available.
 * Venmo personal link (@ausakis) and Pay on delivery stay as options.
+
+## How card orders reach the map (plan)
+
+1. Customer submits the order page. It saves to an Inbox in our account (the page can only add to the inbox, nothing else).
+2. The app looks up their typed address (same address lookup the app already uses) and finds our house box at that spot, matching house number and street. No box there yet: the app draws one at that address. Townhomes: the form asks for a unit, or Brea picks it on approval.
+3. Inbox card in the app: "Ryler's card · 11122 Sweetwater Path · 2 W25 + $10 donation · Venmo". One tap Add to map (option later: add automatically).
+4. Adding writes the exact same order record as entering it at the door: status Yes bought (or Donation), items, donation, scout = the card's scout, name/phone in the note, marked "from card."
+5. Paid: Stripe payments mark paid automatically. Venmo/PayPal can't be verified by the app, so they come in as "says paid on Venmo" until Brea confirms. Pay on delivery = owes (red edge).
+6. Because it's the same record, everything works: map colors, delivery mode, To deliver counts, item filter, routes, delivery check, both phones live.
+7. Same house already has an order: approval asks to add to it or keep separate.
