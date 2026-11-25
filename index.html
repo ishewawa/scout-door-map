@@ -64,6 +64,7 @@ button{cursor:pointer}
 .them-ic{background:none;border:0}.them{position:relative}.them i{display:block;width:22px;height:22px;border-radius:50%;background:#ae3ec9;border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45)}
 .them span{position:absolute;left:26px;top:-2px;white-space:nowrap;background:#ae3ec9;color:#fff;font:700 12px/1 var(--head);padding:5px 8px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.3)}
 .them.stale i,.them.stale span{opacity:.55}
+.tchip.them-off{border:0;background:#e9ecef;color:#495057;font-weight:600}
 .tchip.them-chip{border:0;background:#ae3ec9;color:#fff;font-weight:700;cursor:pointer}
 .stopnum-ic{background:none;border:0}.stopnum{width:30px;height:30px;border-radius:50%;background:#0b7285;color:#fff;border:3px solid #fff;display:grid;place-items:center;font:800 14px/1 var(--head);box-shadow:0 2px 6px rgba(0,0,0,.4)}.stopnum.first{background:#2f9e44;width:34px;height:34px}
 .rtbar{position:absolute;left:12px;right:12px;bottom:18px;z-index:660;background:var(--surface);color:var(--ink);border-radius:18px;box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:10px}
@@ -547,6 +548,15 @@ function cssv(n){return getComputedStyle(document.documentElement).getPropertyVa
 const dark=()=>window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches;
 let toastT;
 function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3200)}
+// city for each house, looked up once, so navigation can use the full street address
+const NAVCITY=(()=>{try{return JSON.parse(localStorage.getItem('sdm.navcity')||'{}')}catch(e){return {}}})();
+function navAddr(hid){const h=H[hid];if(!h||!h.n||!h.s)return '';const c=NAVCITY[hid];if(!c){fetchCity(hid);return ''}return h.n+' '+h.s+', '+c}
+let cityBusy={};
+async function fetchCity(hid){const h=H[hid];if(!h||cityBusy[hid])return;cityBusy[hid]=1;
+  try{const r=await fetch('https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&location='+h.c[1]+','+h.c[0]);const j=await r.json();const a=j&&j.address;
+    if(a&&a.City){NAVCITY[hid]=a.City+(a.RegionAbbr?' '+a.RegionAbbr:'')+(a.Postal?' '+a.Postal:'');try{localStorage.setItem('sdm.navcity',JSON.stringify(NAVCITY))}catch(e){}
+      const b=document.querySelector('[data-navhid="'+CSS.escape(hid)+'"]');const ad=navAddr(hid);if(b&&ad)b.setAttribute('data-navaddr',ad)}}catch(e){}
+  cityBusy[hid]=0}
 function addrOf(h){if(!h)return'';return (h.n?h.n:'')+(h.s?(h.n?' ':'')+h.s:'')}
 function confirmBox(text,ok){return new Promise(res=>{
   const bg=document.createElement('div');bg.className='modal-bg';
@@ -1029,7 +1039,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125023250';
+const BUILD='20261125031018';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD)$('#updPill').hidden=false}catch(e){}}
 setTimeout(checkUpdate,2000);setInterval(()=>{if(document.visibilityState==='visible')checkUpdate()},60000);
@@ -1283,8 +1293,8 @@ function routeText(stops,opt){
       if(opt.money&&x.o.due){ln+=' (collect '+money(x.o.due)+')';due+=x.o.due}
       if(opt.notes&&x.o.m.note)ln+='\n   Note: '+x.o.m.note.replace(/\s+/g,' ')});
     return ln});
-  const links=[];for(let i=0;i<stops.length;i+=10){const ch=stops.slice(i,i+10);const ll=ch.map(x=>x.h.c[0].toFixed(6)+','+x.h.c[1].toFixed(6));
-    let u='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+ll[ll.length-1];if(ll.length>1)u+='&waypoints='+encodeURIComponent(ll.slice(0,-1).join('|'));
+  const links=[];for(let i=0;i<stops.length;i+=10){const ch=stops.slice(i,i+10);const ll=ch.map(x=>(x.hid&&navAddr(x.hid))||(x.h.c[0].toFixed(6)+','+x.h.c[1].toFixed(6)));
+    let u='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(ll[ll.length-1]);if(ll.length>1)u+='&waypoints='+encodeURIComponent(ll.slice(0,-1).join('|'));
     links.push((ch.length===1?'Stop '+(i+1):'Stops '+(i+1)+' to '+(i+ch.length))+': '+u)}
   const tot=Object.keys(items).map(k=>items[k]+' '+k).join(', ');
   return 'Wreath delivery route ('+stops.length+' stop'+(stops.length===1?'':'s')+', '+town+')\n'+(tot?'Load: '+tot+'\n':'')+(opt.money&&due?'To collect: '+money(due)+'\n':'')+'\n'+lines.join('\n')+'\n\nDirections in Google Maps, in order:\n'+links.join('\n')}
@@ -1358,8 +1368,8 @@ function planRoutes(perLoad,start,ang){
   return ordered.map((stops,i)=>{const load={};let due=0;const streets=[];let items=0;
     stops.forEach(st=>{items+=st.n;st.list.forEach(x=>{x.o.items.forEach(it=>{const c=pcode(it.p);load[c]=(load[c]||0)+it.q});if(!x.o.m.paid)due+=x.o.due||0});const sn=st.h.s||'';if(sn&&!streets.includes(sn))streets.push(sn)});
     return{name:'Route '+(i+1),hids:stops.map(st=>st.hid),stops,items,load,due,streets}})}
-function routeLinks(stops){const links=[];if(CUR_ORDER.length){const pos={};CUR_ORDER.forEach((h,i)=>pos[h]=i);stops=stops.slice().sort((a,b)=>(pos[a.hid]??1e9)-(pos[b.hid]??1e9))}for(let i=0;i<stops.length;i+=10){const ch=stops.slice(i,i+10);const ll=ch.map(x=>x.h.c[0].toFixed(6)+','+x.h.c[1].toFixed(6));
-  let u='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+ll[ll.length-1];if(ll.length>1)u+='&waypoints='+encodeURIComponent(ll.slice(0,-1).join('|'));
+function routeLinks(stops){const links=[];if(CUR_ORDER.length){const pos={};CUR_ORDER.forEach((h,i)=>pos[h]=i);stops=stops.slice().sort((a,b)=>(pos[a.hid]??1e9)-(pos[b.hid]??1e9))}for(let i=0;i<stops.length;i+=10){const ch=stops.slice(i,i+10);const ll=ch.map(x=>(x.hid&&navAddr(x.hid))||(x.h.c[0].toFixed(6)+','+x.h.c[1].toFixed(6)));
+  let u='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(ll[ll.length-1]);if(ll.length>1)u+='&waypoints='+encodeURIComponent(ll.slice(0,-1).join('|'));
   links.push({label:ch.length===1?'Stop '+(i+1):'Stops '+(i+1)+' to '+(i+ch.length),u})}return links}
 // look at a route on the map before starting it
 function previewRoute(r){
@@ -1408,7 +1418,7 @@ function openRoutes(){
   openSheet('<div class="sh-head"><div class="sh-title"><h2>Routes</h2><p>What to load, and which houses go together</p></div>'+X+'</div><div class="sh-body"></div>',true);
   draw();
 }
-document.getElementById('tally').addEventListener('click',e=>{const lv=e.target.closest('[data-live]');if(lv){const p=LIVE[lv.getAttribute('data-live')];if(p){if(typeof setFollow==='function')setFollow(false);map.flyTo([p.lat,p.lng],17)}}if(e.target.closest('#routesBtn'))openRoutes();if(e.target.closest('#itemFilter'))openItemFilter();if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
+document.getElementById('tally').addEventListener('click',e=>{if(e.target.closest('[data-shareme]')){try{localStorage.removeItem('sdm.trackoff')}catch(x){}startTracking(false);setTimeout(renderTallyLive,300);return}const lv=e.target.closest('[data-live]');if(lv){const p=LIVE[lv.getAttribute('data-live')];if(p){if(typeof setFollow==='function')setFollow(false);map.flyTo([p.lat,p.lng],17)}}if(e.target.closest('#routesBtn'))openRoutes();if(e.target.closest('#itemFilter'))openItemFilter();if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
 function openPickups(){
   sheetKind='pickups';const m=S.marks[S.active]||{};const rows=[];
   for(const k in m){const hid=k.split('|')[0];if(!H[hid]||m[k].delivered||m[k].how!=='pickup')continue;const o=orderOf(k);if(!o)continue;
@@ -1604,7 +1614,7 @@ function openDelivery(hid){
       (x.o.legacy?'<div class="drow"><b>'+money(x.o.legacy)+'</b><span>order, items not listed</span></div>':'')+
       (m.paid?'<div class="dpay ok">Paid'+(by?' by '+esc(by):'')+'</div>':'<div class="dpay due">Not paid: '+money(x.o.due)+' due</div>'+(S.venmo&&x.o.due?'<button class="vbtn" data-venmo="'+i+'">Show Venmo QR for '+money(x.o.due)+'</button>':'')+'<div class="row" style="flex-wrap:wrap">'+['Cash','Check','Venmo'].map(w=>'<button class="btn small" data-paid="'+i+'" data-w="'+w.toLowerCase()+'">Paid by '+w+'</button>').join('')+'</div>')+
       (m.note?'<div class="hint">'+esc(m.note)+'</div>':'')+
-      (i===0?'<button type="button" class="btn" data-navto="'+h.c[0]+','+h.c[1]+'">Navigate in Google Maps</button>'+(ROUTE&&ROUTE.hids.includes(hid)&&!list.every(y=>y.o.m.delivered)?'<button type="button" class="btn" data-skip="1">\u23ed Skip for now (save for a later route)</button>':''):'')+
+      (i===0?'<button type="button" class="btn" data-navto="'+h.c[0]+','+h.c[1]+'"'+(navAddr(hid)?' data-navaddr="'+esc(navAddr(hid))+'"':'')+' data-navhid="'+esc(hid)+'">Navigate in Google Maps</button>'+(ROUTE&&ROUTE.hids.includes(hid)&&!list.every(y=>y.o.m.delivered)?'<button type="button" class="btn" data-skip="1">\u23ed Skip for now (save for a later route)</button>':''):'')+
       '<button class="big-btn'+(m.delivered?' undo':'')+'" data-dlv="'+i+'">'+(m.delivered?'Delivered \u2713'+(m.dBy?' by '+esc(m.dBy):'')+(m.dAt?' at '+new Date(m.dAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):'')+(m.how==='door'?', left at door':m.how==='person'?', handed to someone':m.how==='pickup'?', picked up':'')+' (tap to undo)':(m.how==='pickup'?'They picked it up':'Mark delivered'))+'</button>'+
       '<div class="chips dhow" role="group" aria-label="How it was delivered"><button class="chip" data-how="door" data-i="'+i+'" aria-pressed="'+(m.how==='door')+'">\ud83d\udeaa Left at door</button><button class="chip" data-how="person" data-i="'+i+'" aria-pressed="'+(m.how==='person')+'">\ud83e\udd1d Handed to someone</button><button class="chip pkchip" data-how="pickup" data-i="'+i+'" aria-pressed="'+(m.how==='pickup')+'">\ud83d\udce6 Will pick up from us</button></div>'+
       '<div class="row dphoto"><button class="btn" data-photo="'+i+'">\ud83d\udcf7 '+(m.photo?'Retake photo':(m.delivered?'Add photo':'Photo + mark delivered'))+'</button><button class="btn small" data-gallery="'+i+'" aria-label="Pick a photo you already took">From photos</button>'+(m.photo?'<button class="dthumb" data-view="'+i+'" aria-label="See delivery photo"><img alt="" data-thumb="'+esc(x.key)+'"></button>':'')+'</div>'+(m.photo&&m.pgeo?'<p class="hint pgeo'+(m.pgeo.d-(m.pgeo.acc||0)>100?' far':'')+'">'+geoText(m.pgeo)+'</p>':'')+'</div>'});
@@ -1923,7 +1933,10 @@ function drawLive(){
     L.marker([p.lat,p.lng],{icon:L.divIcon({className:'them-ic',html:'<div class="them'+(stale?' stale':'')+'"><i></i><span>'+esc(p.name||'Other phone')+' · '+agoText(p.t)+'</span></div>',iconSize:[22,22],iconAnchor:[11,11]}),zIndexOffset:9500,interactive:false,keyboard:false}).addTo(liveLayer)});
   try{renderTallyLive()}catch(e){}}
 function renderTallyLive(){const el=document.getElementById('liveChips');if(!el)return;
-  el.innerHTML=liveOthers().map(p=>'<button type="button" class="tchip them-chip" data-live="'+esc(p.k)+'">👤 '+esc(p.name||'Other phone')+' · '+agoText(p.t)+'</button>').join('')}
+  const offs=Object.keys(LIVE).map(k=>Object.assign({k},LIVE[k])).filter(p=>p.off&&Date.now()-p.t<45*60000);
+  el.innerHTML=(S.deliver&&watchId===null?'<button type="button" class="tchip them-off" data-shareme="1">📍 Your location is off · tap to share</button>':'')+
+    liveOthers().map(p=>'<button type="button" class="tchip them-chip" data-live="'+esc(p.k)+'">👤 '+esc(p.name||'Other phone')+' · '+agoText(p.t)+'</button>').join('')+
+    offs.map(p=>'<span class="tchip them-off">👤 '+esc(p.name||'Other phone')+' · location off</span>').join('')}
 setInterval(()=>{if(Object.keys(LIVE).length)drawLive()},30000);
 function startTracking(quiet,noFollow){
   if(!('geolocation' in navigator)){if(!quiet)toast('This browser cannot share your location.');return}
@@ -1941,8 +1954,9 @@ function startTracking(quiet,noFollow){
   setFollow(!noFollow);
   try{localStorage.setItem('sdm.track','1')}catch(e){}
   if(S.deliver)keepAwake(true);
+  try{renderTallyLive()}catch(e){}
 }
-function stopTracking(){shareSpot(null);if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=null;setFollow(false);showNear(null);keepAwake(false);
+function stopTracking(){setTimeout(()=>{try{renderTallyLive()}catch(e){}},0);shareSpot(null);if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=null;setFollow(false);showNear(null);keepAwake(false);
   if(meDot){map.removeLayer(meDot);map.removeLayer(meRing);meDot=meRing=null}}
 $('#fabLocate').addEventListener('click',()=>{
   if(watchId===null){try{localStorage.removeItem('sdm.trackoff')}catch(e){}startTracking(false);return}
@@ -2206,7 +2220,7 @@ document.getElementById('updPill').addEventListener('click',()=>{const p=documen
 // open Google Maps from an installed app: Android gets turn by turn straight away; elsewhere the Maps link opens in place
 document.addEventListener('click',e=>{const b=e.target.closest('[data-navto],[data-mapsurl]');if(!b)return;e.preventDefault();
   const android=/android/i.test(navigator.userAgent);
-  if(b.hasAttribute('data-navto')){const ll=b.getAttribute('data-navto');
+  if(b.hasAttribute('data-navto')){const ll=b.getAttribute('data-navaddr')?encodeURIComponent(b.getAttribute('data-navaddr')):b.getAttribute('data-navto');
     const web='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+ll;
     if(android){location.href='intent://navigation?q='+ll+'&mode=d#Intent;scheme=google.navigation;package=com.google.android.apps.maps;S.browser_fallback_url='+encodeURIComponent(web)+';end';return}
     location.href=web;return}
