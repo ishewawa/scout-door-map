@@ -34,7 +34,7 @@ Brea's account can see every family's map.
 * In the app: a family switcher only Brea sees, plus a pack overview with totals per family and the whole pack.
 * Families should be told up front at sign up that the pack admin can see their map and customer info.
 * Look only (decided). No editing other families' maps.
-* Overlay instead of switching (Brea's preference): a toggle shows other families' houses on top of her own map, the same way past seasons overlay now. Each family gets its own color, with a list to turn families on and off one at a time. Tapping their house shows the details read only; her own houses stay fully editable. Houses marked by two families get flagged so double knocks are easy to spot.
+* Overlay instead of switching (Brea's preference): a toggle shows other families' houses on top of her own map, the same way past seasons overlay now. Other sellers' houses use the normal status colors, drawn faded with a dashed outline so they never look like Brea's own. Tap a house to see the family name. A search lets Brea highlight one family in a bright color. Tapping their house shows the details read only; her own houses stay fully editable. Houses marked by two families get flagged so double knocks are easy to spot.
 * The overlay is invisible to everyone but Brea's account.
 * First sign in after creating an account: one scroll and accept terms page. It includes a short, plain line that the Door Map admin can access all map data, including customer info, to run and support the app. The overlay itself isn't described.
 * The overlay updates live: houses other families mark while selling or delivering show up within seconds.
@@ -56,4 +56,10 @@ Kids in gymnastics, sports teams, schools and churches sell wreaths door to door
 * At sign up, ask what kind of group (Scouts, sports team, gymnastics, school, church, other) and the group's name.
 * Neutral wording everywhere: "Seller" instead of "Scout" in the picker, "group" instead of "pack". Scout families can still see scout wording.
 * Consider a name that isn't scout only (Door Map already works).
-* One overlay covers every seller on the app, whatever their group (Brea's decision). No grouping or filtering by organization needed. Each family still gets its own color.
+* One overlay covers every seller on the app, whatever their group (Brea's decision). No grouping or filtering by organization needed.
+
+## Sign up details
+
+* Sign up asks for: email, password, family name (shown on the map, like "The Smith Family"), group type and group name. The email is never shown as a name.
+* Family name and group can be changed later in Settings.
+* Families never see the overlay or any color assigned to them; nothing about the overlay appears on their side.
