@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Item check · Door Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+:root{--bg:#f3f5f7;--surface:#fff;--ink:#1d2a3a;--muted:#5d6b7c;--line:#d8dee6;--navy:#1d2a3a;--display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;--body:"Figtree",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#0f151d;--surface:#18212c;--ink:#e7edf4;--muted:#9aa8b8;--line:#2b3746;--navy:#0b1118}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body)}
+header{background:var(--navy);color:#fff;padding:calc(env(safe-area-inset-top) + 12px) 16px 14px;border-radius:0 0 18px 18px}
+header .row{display:flex;align-items:center;gap:10px}header h1{font-family:var(--display);font-size:26px;margin:0;flex:1}
+header a{color:#fff;text-decoration:none;font-weight:600;font-size:14px;background:rgba(255,255,255,.12);padding:6px 11px;border-radius:999px}
+header p{margin:6px 0 10px;color:#b9c4d0;font-size:13px}
+select{width:100%;font:600 16px var(--body);padding:10px 12px;border-radius:12px;border:0}
+main{padding:12px 14px 40px}
+.sum{display:flex;gap:10px;flex-wrap:wrap;margin:4px 0 14px}
+.sum div{background:var(--surface);border-radius:12px;padding:8px 12px;flex:1;min-width:92px}
+.sum span{display:block;font-size:11.5px;color:var(--muted)}.sum b{font-family:var(--display);font-size:24px}
+h2{font-family:var(--display);font-size:20px;margin:18px 2px 4px}
+.hint{margin:0 2px 8px;font-size:13px;color:var(--muted);line-height:1.35}
+.card{background:var(--surface);border-radius:12px;padding:10px 12px;margin:6px 0;line-height:1.4}
+.card b{font-size:15px}.card .m{font-size:13px;color:var(--muted)}
+.q{float:right;font-family:var(--display);font-size:20px;font-weight:700}
+.flag{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:#fff3bf;color:#7a5b00;margin-left:4px}
+.none{color:var(--muted);font-size:13px;margin:4px 2px}
+</style>
+</head>
+<body>
+<header>
+  <div class="row"><h1>Item check</h1><a href="./">Back to Door Map</a></div>
+  <p>Read only. Shows every order with this item this season, from the map saved on this phone. Nothing is changed.</p>
+  <select id="pick"></select>
+</header>
+<main id="out"></main>
+<script>
+(function(){
+function read(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+const S=read('sdm.state.v1',null),H=read('sdm.houses.v1',{});
+const out=document.getElementById('out'),pick=document.getElementById('pick');
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+if(!S){out.innerHTML='<p class="none">Your map isn\'t on this phone yet. Open Door Map first, then come back.</p>';pick.style.display='none';return}
+const DEF=[{id:'w25',label:'Balsam Fir Wreath (25")'},{id:'w36',label:'Balsam Fir Wreath (36")'},{id:'wvoy',label:'Wreath Voyageur'},{id:'swag',label:'Door Swag'},{id:'garl',label:'Garland 25 ft'},{id:'cent',label:'Centerpiece'}];
+const SID=S.active,seasons=S.seasons||[];
+function prods(sid){let i=seasons.findIndex(s=>s.id===sid);for(;i>=0;i--)if(seasons[i].products)return seasons[i].products;return DEF}
+const P=prods(SID),M=(S.marks&&S.marks[SID])||{};
+const addr=hid=>{const h=H[hid];return h?((h.n||'')+' '+(h.s||'')).trim()||'House with no number':'(house no longer on the map)'};
+const when=t=>t?new Date(t).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'}):'';
+// items mentioned on any order, so the list only offers things that were sold
+const sold={};for(const k in M){const it=M[k].items||{};for(const id in it)if(+it[id])sold[id]=1}
+const opts=P.filter(p=>sold[p.id]);
+pick.innerHTML=opts.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.label)+'</option>').join('');
+const sw=opts.find(p=>/swag/i.test(p.id+' '+p.label));if(sw)pick.value=sw.id;
+function render(){const pid=pick.value,P0=opts.find(p=>p.id===pid);if(!P0){out.innerHTML='<p class="none">No items on orders this season.</p>';return}
+  const g={todo:[],pickup:[],done:[],hidden:[]};let tot={todo:0,pickup:0,done:0,hidden:0};
+  for(const k in M){const m=M[k],q=+((m.items||{})[pid])||0;if(!q)continue;const [hid,u]=k.split('|');const h=H[hid];
+    const row={k,hid,u,q,m};
+    const grp=(!h||h.x)?'hidden':m.delivered?'done':m.how==='pickup'?'pickup':'todo';g[grp].push(row);tot[grp]+=q}
+  const card=r=>{const m=r.m,bits=[];
+    if(m.delivered){bits.push('Delivered'+(m.dBy?' by '+esc(m.dBy):'')+(m.dAt?' '+when(m.dAt):''));
+      bits.push(m.how==='door'?'left at door':m.how==='person'?'handed to someone':m.how==='pickup'?'picked up':'no "how" picked');
+      if(m.photo)bits.push('has photo')}
+    if(m.seller)bits.push('sold by '+esc(m.seller));
+    const others=Object.keys(m.items||{}).filter(id=>id!==pid&&+m.items[id]).map(id=>{const p=P.find(x=>x.id===id);return m.items[id]+' '+(p?p.label:id)});
+    let flags='';if(m.delivered&&!m.how)flags+='<span class="flag">check this one</span>';if(m.delivered&&!m.photo&&m.how==='door')flags+='';
+    return '<div class="card"><span class="q">'+r.q+'</span><b>'+esc(addr(r.hid))+(r.u?' unit '+esc(r.u):'')+'</b>'+flags+'<div class="m">'+bits.join(' · ')+'</div>'+(others.length?'<div class="m">Also: '+esc(others.join(', '))+'</div>':'')+(m.note?'<div class="m">Note: '+esc(m.note)+'</div>':'')+'</div>'};
+  g.done.sort((a,b)=>(b.m.dAt||0)-(a.m.dAt||0));
+  const sec=(title,hint,rows)=>'<h2>'+title+'</h2>'+(hint?'<p class="hint">'+hint+'</p>':'')+(rows.length?rows.map(card).join(''):'<p class="none">None</p>');
+  const all=tot.todo+tot.pickup+tot.done+tot.hidden;
+  out.innerHTML='<div class="sum"><div><span>Ordered</span><b>'+all+'</b></div><div><span>To deliver</span><b>'+tot.todo+'</b></div><div><span>Pickups</span><b>'+tot.pickup+'</b></div><div><span>Delivered</span><b>'+tot.done+'</b></div></div>'+
+    '<p class="hint">If you\'re holding more than "To deliver" plus "Pickups", one of the delivered orders below probably didn\'t actually get it, or it was never entered on an order. Compare the total ordered with how many you received.</p>'+
+    sec('Still to deliver','',g.todo)+
+    sec('Will pick up','These are kept at home for the customer, so the delivery count leaves them out.',g.pickup)+
+    (g.hidden.length?sec('On hidden or removed houses','These orders don\'t show on the map, so the app doesn\'t count them.',g.hidden):'')+
+    sec('Delivered','Newest first. Ones marked "check this one" were marked delivered without picking how.',g.done)}
+pick.addEventListener('change',render);render();
+})();
+</script>
+</body>
+</html>
