@@ -693,7 +693,7 @@ function knockText(n){return 'Knocked '+n+' time'+(n===1?'':'s')+', nobody home'
 function heatOn(){return S.heat.on && shown().length>1 && (S.heat.status==='all'||!!statusById(S.heat.status))}
 
 /* ---------- map ---------- */
-const map=L.map('map',{zoomControl:false,attributionControl:false,preferCanvas:true,maxZoom:21}).setView(S.view.c,S.view.z);
+const map=L.map('map',{zoomControl:false,attributionControl:false,preferCanvas:true,maxZoom:21,doubleClickZoom:false}).setView(S.view.c,S.view.z);
 L.control.attribution({prefix:false}).addTo(map); // plain text credits, nothing tappable that leaves the page
 const renderer=L.canvas({padding:.3,tolerance:6});
 const bases={
@@ -999,7 +999,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125014822';
+const BUILD='20261125015630';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD)$('#updPill').hidden=false}catch(e){}}
 setTimeout(checkUpdate,2000);setInterval(()=>{if(document.visibilityState==='visible')checkUpdate()},60000);
@@ -1409,7 +1409,7 @@ document.getElementById('helperExit').addEventListener('click',async()=>{const c
 // first time tour: a few cards that point at the main parts of the app
 const TOUR=[
   {t:'Welcome to Door Map',d:'Track every door your scouts knock, see who bought, and deliver without missing anyone. This takes about a minute.'},
-  {sel:'#map',t:'Tap a house',d:'Every house is a box on the map. Tap one to mark what happened: Yes, No, Not home, Come back. Add items and the price adds itself up.'},
+  {sel:'#map',t:'Tap a house',d:'Every house is a box on the map. Tap one to mark what happened: Yes, No, Not home, Come back. Add items and the price adds itself up. No box? Double tap the spot to add one.'},
   {sel:'#scoutSel',t:'Pick who is selling',d:'Choose the scout before you start knocking. Every door they mark gets credited to them, so the scoreboard stays fair.'},
   {sel:'#tally',t:'Your counts',d:'How many doors landed on each status this season. Swipe sideways to see them all.'},
   {sel:'#money',t:'Your totals',d:'Sales, money not collected yet, donations and the total. The round button lets you hide numbers before you show the app to someone.'},
@@ -1773,12 +1773,16 @@ $('#fabAdd').addEventListener('click',()=>{
   addMode=!addMode;$('#fabAdd').classList.toggle('on',addMode);
   if(addMode){closeSheet();if(map.getZoom()<17)map.setZoom(18);setBanner('Tap the map where the missing house is.')}else setBanner(null);
 });
-map.on('click',e=>{
+map.on('dblclick',e=>{if(moveId||addMode)return;if(sheetKind)closeSheet();e.dbl=true;mapTap(e)});
+map.on('click',e=>mapTap(e));
+function mapTap(e){
   if(!$('#searchRes').hidden){hideSearch();return}
   if(moveId){moveTo(moveId,e.latlng);if(moveHandle)moveHandle.setLatLng(e.latlng);saveH();return}
   if(!addMode&&sheetKind){closeSheet();return}
   if(S.deliver&&!addMode)return; // first tap just closes an open panel
-  if(!addMode&&map.getZoom()<17){toast('Zoom in closer, then tap a house.');return}
+  // one tap on an empty spot does nothing; a new box needs a double tap (or the add house button)
+  if(!addMode&&!e.dbl)return;
+  if(!addMode&&map.getZoom()<17){toast('Zoom in closer, then double tap a house.');return}
   const wasAdd=addMode;
   const c=[r6(e.latlng.lat),r6(e.latlng.lng)];const id='c'+Date.now().toString(36);
   H[id]={c,p:square(c,7),n:'',s:'',e:1,custom:1,temp:1};
@@ -1794,7 +1798,7 @@ map.on('click',e=>{
       if(ni&&!ni.value)ni.value=a.n;if(si&&!si.value)si.value=a.s;
     }
   });
-});
+}
 
 /* address search: your boxes first, then the map */
 function goToHouse(hid){const h=H[hid];if(!h)return;hideSearch();$('#searchIn').value='';$('#searchClr').hidden=true;map.setView(h.c,Math.max(map.getZoom(),19));setTimeout(()=>onHouseTap(hid),350)}
@@ -2142,7 +2146,7 @@ for(const id in H)if(H[id].temp)delete H[id];
 {let ch=false;for(const id in H){const h=H[id];if(h.custom&&hasUnits(h)&&h.u.length>1&&!h.wd){setBoxGeom(h);h.wd=1;ch=true}}if(ch)saveH()} // widen unit boxes placed before sections existed
 renderTop();drawHouses();drawLabels();wantTiles();renderSafe();initSync();
 if(isWebsite&&'serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
-if(!Object.keys(H).length){setBanner('Zoom in on your street and tap a house to mark it.');setTimeout(()=>setBanner(null),6000)}
+if(!Object.keys(H).length){setBanner('Zoom in on your street and double tap a house to mark it.');setTimeout(()=>setBanner(null),6000)}
 applyHelper();
 try{if(sessionStorage.getItem('sdm.photoPending')){sessionStorage.removeItem('sdm.photoPending');setTimeout(()=>toast('The phone restarted the app while the camera was open. Open the house and tap From photos to attach the picture you took.'),2500)}}catch(e){}
 if(FIRST_RUN&&!helperCfg())setTimeout(()=>{if(!document.querySelector('.login:not([hidden])'))startTour();else{const iv=setInterval(()=>{if(!document.querySelector('.login:not([hidden])')){clearInterval(iv);setTimeout(startTour,800)}},1000)}},1200);
