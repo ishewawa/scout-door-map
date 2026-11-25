@@ -685,7 +685,7 @@ function drawRouteOverlay(){
     .on('click',()=>{selected=st.hid;openDelivery(st.hid)}).addTo(routeLayer));
 }
 function syncRouting(){document.body.classList.toggle('routing',!!(PREVIEW||ROUTE));drawRouteOverlay()}
-function isBlue(list){if(!list.length)return false;const hid=list[0].key.split('|')[0];
+function isBlue(list){if(!list.length)return false;const hid=String((list[0]&&list[0].key)||'').split('|')[0];
   if(PREVIEW)return !PREVIEW.hids.includes(hid);
   if(ROUTE&&ROUTE.hids)return !ROUTE.hids.includes(hid);return !!DSKIP.length&&!onHold(list)}
 function routeLeft(){if(!ROUTE)return 0;let n=0;for(const hid of ROUTE.hids){const l=H[hid]?houseOrders(hid):[];if(l.some(x=>!x.o.m.delivered))n++}return n}
@@ -800,7 +800,7 @@ function sliceRects(h){
 }
 function sliceStyle(hid,u){
   const outline=cssv('--outline'),box=cssv('--box'),key=hid+'|'+u;
-  if(S.deliver){const o=orderOf(key);const st=delStyle(o?[{o}]:[],false);st.weight=1;st.color=outline;return st}
+  if(S.deliver){const o=orderOf(key);const st=delStyle(o?[{o,key}]:[],false);st.weight=1;st.color=outline;return st}
   if(heatOn()){const hi=heatInfo(key),st=hi.st,n=hi.n,tot=shown().length;
     if(!n)return{color:outline,weight:1,opacity:.7,fillColor:box,fillOpacity:.08};
     const f=n/tot;return{color:outline,weight:1,opacity:.9,fillColor:shadeColor(st.color,f),fillOpacity:.25+.7*f}}
@@ -1050,7 +1050,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125032501';
+const BUILD='20261125032859';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD){window.NEWV=v;$('#updPill').hidden=false}}catch(e){}}
 // after an update the address has ?v=...; tidy it back to the plain address
