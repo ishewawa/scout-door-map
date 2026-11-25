@@ -60,6 +60,10 @@ button{cursor:pointer}
 .banner .spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.banner .spin{animation:none}}
+.them-ic{background:none;border:0}.them{position:relative}.them i{display:block;width:22px;height:22px;border-radius:50%;background:#ae3ec9;border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45)}
+.them span{position:absolute;left:26px;top:-2px;white-space:nowrap;background:#ae3ec9;color:#fff;font:700 12px/1 var(--head);padding:5px 8px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.them.stale i,.them.stale span{opacity:.55}
+.tchip.them-chip{border:0;background:#ae3ec9;color:#fff;font-weight:700;cursor:pointer}
 .stopnum-ic{background:none;border:0}.stopnum{width:30px;height:30px;border-radius:50%;background:#0b7285;color:#fff;border:3px solid #fff;display:grid;place-items:center;font:800 14px/1 var(--head);box-shadow:0 2px 6px rgba(0,0,0,.4)}.stopnum.first{background:#2f9e44;width:34px;height:34px}
 .rtbar{position:absolute;left:12px;right:12px;bottom:18px;z-index:660;background:var(--surface);color:var(--ink);border-radius:18px;box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:10px}
 .rtbar .due{color:#e03131;font-weight:700}.rtb-t{font-size:15px}.rtb-load{margin-top:4px;font-weight:700;font-size:14px;color:var(--muted)}
@@ -1010,11 +1014,11 @@ function openTBPop(){
 document.getElementById('money').addEventListener('click',e=>{if(e.target.closest('#tbFilter'))openTBPop()});
 function hideDonSt(id){if(TB.don||!id)return false;const st=statusById(id);return !!(st&&(/donat/i.test(st.label)||/donat/i.test(st.id)))}
 function saveTB(){try{localStorage.setItem('sdm.topbar',JSON.stringify(TB))}catch(e){}}
-function renderTally(){try{if(S.deliver||PREVIEW)drawRouteOverlay()}catch(e){}
+function renderTally(){try{if(S.deliver||PREVIEW)drawRouteOverlay()}catch(e){}setTimeout(()=>{try{renderTallyLive()}catch(e){}},0);
   const m=S.marks[S.active]||{};
   if(S.deliver){let todo=0,done=0,pick=0;const left={};const prods=prodsFor(S.active);
     for(const k in m){const hid=k.split('|')[0];if(!H[hid]||H[hid].x)continue;const o=orderOf(k);if(!o)continue;if(m[k].delivered){done++;continue}if(m[k].how==='pickup'){pick++;continue}todo++;for(const it of o.items)left[it.p.id]=(left[it.p.id]||0)+it.q}
-    $('#tally').innerHTML=(ROUTE?'<button type="button" class="tchip rt on" id="routesBtn">\ud83d\uddfa '+esc(ROUTE.name)+' \u00b7 <b>'+routeLeft()+'</b> left</button>':'<button type="button" class="tchip rt" id="routesBtn">\ud83d\uddfa Routes</button>')+'<button type="button" class="tchip share" id="shareRoute">\u2197 Share route</button><span class="tchip dv">To deliver <b>'+todo+'</b></span><button type="button" class="tchip itf" id="itemFilter">'+(DSKIP.length?'Ready <b>'+holdCount()+'</b>':'\u2611 Filter items')+'</button>'+(pick?'<button type="button" class="tchip pk" id="pickupList">\ud83d\udce6 Pickup <b>'+pick+'</b></button>':'')+'<span class="tchip">Delivered <b>'+done+'</b></span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #2f9e44 inset"></i>Paid</span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #e03131 inset"></i>Owes</span>'+prods.filter(p=>left[p.id]).map(p=>'<span class="tchip">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></span>').join('');
+    $('#tally').innerHTML='<span id="liveChips" style="display:contents"></span>'+(ROUTE?'<button type="button" class="tchip rt on" id="routesBtn">\ud83d\uddfa '+esc(ROUTE.name)+' \u00b7 <b>'+routeLeft()+'</b> left</button>':'<button type="button" class="tchip rt" id="routesBtn">\ud83d\uddfa Routes</button>')+'<button type="button" class="tchip share" id="shareRoute">\u2197 Share route</button><span class="tchip dv">To deliver <b>'+todo+'</b></span><button type="button" class="tchip itf" id="itemFilter">'+(DSKIP.length?'Ready <b>'+holdCount()+'</b>':'\u2611 Filter items')+'</button>'+(pick?'<button type="button" class="tchip pk" id="pickupList">\ud83d\udce6 Pickup <b>'+pick+'</b></button>':'')+'<span class="tchip">Delivered <b>'+done+'</b></span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #2f9e44 inset"></i>Paid</span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #e03131 inset"></i>Owes</span>'+prods.filter(p=>left[p.id]).map(p=>'<span class="tchip">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></span>').join('');
     const t=seasonTotals(S.active);$('#money').innerHTML='<span>Delivery mode</span>'+(t.unpaid?'<span class="unp">Still to collect <b>'+money(t.unpaid)+'</b></span>':'<span>All paid</span>');return}const cnt={};for(const id in m){const st=m[id].st;if(st)cnt[st]=(cnt[st]||0)+1}
   let paid=0,unpaid=0;for(const id in m){if(m[id].paid)paid++;else if(needsPay(id))unpaid++}
   const t=seasonTotals(S.active);
@@ -1371,7 +1375,7 @@ function openRoutes(){
   openSheet('<div class="sh-head"><div class="sh-title"><h2>Routes</h2><p>What to load, and which houses go together</p></div>'+X+'</div><div class="sh-body"></div>',true);
   draw();
 }
-document.getElementById('tally').addEventListener('click',e=>{if(e.target.closest('#routesBtn'))openRoutes();if(e.target.closest('#itemFilter'))openItemFilter();if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
+document.getElementById('tally').addEventListener('click',e=>{const lv=e.target.closest('[data-live]');if(lv){const p=LIVE[lv.getAttribute('data-live')];if(p){if(typeof setFollow==='function')setFollow(false);map.flyTo([p.lat,p.lng],17)}}if(e.target.closest('#routesBtn'))openRoutes();if(e.target.closest('#itemFilter'))openItemFilter();if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
 function openPickups(){
   sheetKind='pickups';const m=S.marks[S.active]||{};const rows=[];
   for(const k in m){const hid=k.split('|')[0];if(!H[hid]||m[k].delivered||m[k].how!=='pickup')continue;const o=orderOf(k);if(!o)continue;
@@ -1820,7 +1824,7 @@ $('#searchClr').addEventListener('click',()=>{$('#searchIn').value='';renderSear
 map.on('movestart',()=>{$('#searchRes').hidden=true});
 /* delivery mode toggle */
 function setDeliver(on){S.deliver=on;saveS();$('#fabDeliver').classList.toggle('on',on);if(sheetKind==='house')closeSheet();restyleAll();
-  try{if(on){if(localStorage.getItem('sdm.trackoff')!=='1')startTracking(true);if(watchId!==null)keepAwake(true)}else{showNear(null);keepAwake(false)}}catch(e){}
+  try{if(on){if(localStorage.getItem('sdm.trackoff')!=='1')startTracking(true);if(watchId!==null)keepAwake(true)}else{showNear(null);keepAwake(false);shareSpot(null)}}catch(e){}
   toast(on?'Delivery mode: yellow houses still need their order. Tap one to see it.':'Delivery mode off')}
 $('#fabDeliver').addEventListener('click',()=>setDeliver(!S.deliver));
 $('#fabDeliver').classList.toggle('on',!!S.deliver);
@@ -1842,6 +1846,29 @@ function showNear(hid){const el=$('#nearPill');if(!hid){el.hidden=true;el.remove
   const l=houseOrders(hid).filter(x=>!x.o.m.delivered);const items=l.reduce((a,x)=>a+x.o.items.reduce((b,it)=>b+it.q,0),0);const due=l.reduce((a,x)=>a+(!x.o.m.paid?(x.o.due||0):0),0);
   el.innerHTML='📍 You are at <b>'+esc(addrOf(H[hid])||'this house')+'</b> · '+items+' item'+(items===1?'':'s')+(due?' · <span class="due">'+money(due)+' due</span>':'')+'<span class="go">Open</span>';
   el.setAttribute('data-hid',hid);el.hidden=false}
+// live progress: while delivering, this phone shares where it is; other phones show it with the name and how long ago
+function devId(){try{let d=localStorage.getItem('sdm.devid');if(!d){d=Math.random().toString(36).slice(2,10);localStorage.setItem('sdm.devid',d)}return d}catch(e){return 'x'}}
+let lastShare={t:0,ll:null};
+function shareSpot(ll,acc){
+  if(!SY.ready||!SY.db)return;const now=Date.now();
+  let body;
+  if(!ll||!S.deliver){if(!lastShare.ll)return;body={off:true,t:now,name:deviceName()};lastShare={t:0,ll:null}}
+  else{const moved=lastShare.ll?metersBetween({lat:ll[0],lng:ll[1]},lastShare.ll):1e9;if(now-lastShare.t<20000&&moved<40)return;
+    body={lat:+ll[0].toFixed(6),lng:+ll[1].toFixed(6),acc:Math.round(acc||0),t:now,name:deviceName()};lastShare={t:now,ll}}
+  try{SY.db.collection('data').doc('live').set({['p_'+devId()]:JSON.stringify(body),u:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{})}catch(e){}}
+const LIVE={};let liveLayer=null;
+function applyLive(data){if(!data)return;const me='p_'+devId();
+  for(const k in data){if(!k.startsWith('p_')||k===me)continue;try{LIVE[k]=JSON.parse(data[k])}catch(e){}}drawLive()}
+function agoText(t){const m=Math.round((Date.now()-t)/60000);return m<1?'just now':m===1?'1 min ago':m<60?m+' min ago':Math.round(m/60)+' hr ago'}
+function liveOthers(){return Object.keys(LIVE).map(k=>Object.assign({k},LIVE[k])).filter(p=>!p.off&&p.lat&&Date.now()-p.t<45*60000)}
+function drawLive(){
+  if(!liveLayer)liveLayer=L.layerGroup().addTo(map);liveLayer.clearLayers();
+  liveOthers().forEach(p=>{const stale=Date.now()-p.t>5*60000;
+    L.marker([p.lat,p.lng],{icon:L.divIcon({className:'them-ic',html:'<div class="them'+(stale?' stale':'')+'"><i></i><span>'+esc(p.name||'Other phone')+' · '+agoText(p.t)+'</span></div>',iconSize:[22,22],iconAnchor:[11,11]}),zIndexOffset:9500,interactive:false,keyboard:false}).addTo(liveLayer)});
+  try{renderTallyLive()}catch(e){}}
+function renderTallyLive(){const el=document.getElementById('liveChips');if(!el)return;
+  el.innerHTML=liveOthers().map(p=>'<button type="button" class="tchip them-chip" data-live="'+esc(p.k)+'">👤 '+esc(p.name||'Other phone')+' · '+agoText(p.t)+'</button>').join('')}
+setInterval(()=>{if(Object.keys(LIVE).length)drawLive()},30000);
 function startTracking(quiet,noFollow){
   if(!('geolocation' in navigator)){if(!quiet)toast('This browser cannot share your location.');return}
   if(watchId!==null)return;
@@ -1853,12 +1880,13 @@ function startTracking(quiet,noFollow){
     if(!firstFix){firstFix=true;if(follow){progMove=true;map.setView(ll,Math.max(map.getZoom(),18));setTimeout(()=>progMove=false,400)}}
     else if(follow){progMove=true;map.panTo(ll,{animate:true,duration:.6});setTimeout(()=>progMove=false,800)}
     showNear(nearHouse(ll,p.coords.accuracy));
+    shareSpot(ll,p.coords.accuracy);
   },err=>{if(!quiet||err.code!==1)toast(err.code===1?'Location is turned off for this site. Allow it in your browser settings.':'Could not find your location.');stopTracking()},{enableHighAccuracy:true,maximumAge:3000});
   setFollow(!noFollow);
   try{localStorage.setItem('sdm.track','1')}catch(e){}
   if(S.deliver)keepAwake(true);
 }
-function stopTracking(){if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=null;setFollow(false);showNear(null);keepAwake(false);
+function stopTracking(){shareSpot(null);if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=null;setFollow(false);showNear(null);keepAwake(false);
   if(meDot){map.removeLayer(meDot);map.removeLayer(meRing);meDot=meRing=null}}
 $('#fabLocate').addEventListener('click',()=>{
   if(watchId===null){try{localStorage.removeItem('sdm.trackoff')}catch(e){}startTracking(false);return}
@@ -1972,6 +2000,7 @@ async function autoCheck(){
       const id=d.name.slice(d.name.lastIndexOf('/')+1),f=d.fields||{};
       const data={};
       if(f.c&&f.c.stringValue!=null)data.c=f.c.stringValue;
+      for(const k in f)if(k.startsWith('p_')&&f[k].stringValue!=null)data[k]=f[k].stringValue;
       if(f.m){data.m={};const mf=(f.m.mapValue&&f.m.mapValue.fields)||{};for(const k in mf)if(mf[k].stringValue!=null)data.m[k]=mf[k].stringValue}
       const res=applyRemoteDoc(id,data);if(res.changedH.size||res.cfgChanged||res.marksChanged)queueRemoteRender(res)}
     if(newest)SY.since=newest;
@@ -1999,6 +2028,7 @@ function applyConfig(c){try{const o=JSON.parse(c);if(o.statuses&&o.statuses.leng
 // apply what the other phone changed; skip anything this phone changed and has not sent yet
 function applyRemoteDoc(id,data){
   const changedH=new Set();let marksChanged=false,cfgChanged=false;
+  if(id==='live'){try{applyLive(data)}catch(e){}return{changedH,marksChanged,cfgChanged}}
   if(id==='config'){if(data&&data.c&&data.c!==SY.last.C&&sharedConfig()===SY.last.C){applyConfig(data.c);SY.last.C=sharedConfig();cfgChanged=true}return{changedH,marksChanged,cfgChanged}}
   const m=(data&&data.m)||{};
   if(id[0]==='h'){
@@ -2035,6 +2065,7 @@ async function startSync(user){
   catch(err){setBanner(null);toast(err&&err.code==='permission-denied'?'This account cannot open the map. Check the email you signed in with.':'Could not reach your account. Working on this phone for now.');return}
   const rH={},rM={};let rC=null;
   snap.forEach(d=>{const id=d.id,data=d.data();
+    if(id==='live'){try{applyLive(data)}catch(e){}return}
     if(id==='config'){rC=data.c||null;return}
     const m=data.m||{};
     if(id[0]==='h'){for(const k in m)rH[k]=m[k]}
