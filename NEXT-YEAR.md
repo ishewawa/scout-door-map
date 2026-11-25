@@ -103,3 +103,10 @@ Leave a business card at every house that isn't home. The card has our phone num
   Help support Ryler in Cub Scouts this year by ordering or donating. We appreciate you!
   [QR code] Scan to order or donate
   (Same card for each scout with their name swapped in.)
+
+## Card and PayPal payments on the order page
+
+* Use PayPal Checkout (needs a free PayPal business account): customers can pay with PayPal or any credit/debit card without a PayPal account. Venmo button too.
+* No forced 3% card fee: PayPal's user agreement forbids surcharges for accepting PayPal (and Venmo). Instead, an optional "Add $X to help cover card fees" checkbox the customer chooses. Double check wording against PayPal's rules before launch.
+* If we ever charge a true card surcharge (e.g. a different processor): Minnesota allows up to 5% with disclosure, card networks generally cap at 3%, and debit cards generally can't be surcharged. Get advice first.
+* Pay on delivery stays as an option (cash, check, Venmo at the door).
