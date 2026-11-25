@@ -94,3 +94,5 @@ Leave a business card at every house that isn't home. The card has our phone num
 * Safety: the form can only add to the inbox, never read or change the map. Basic spam protection. Orders close on a set date.
 * Optional later: mark houses where a card was left ("Card left") so we know who got one, and see which cards turned into orders.
 * Also solves missing deliveries: every customer, in person or by card, ends up with our number.
+* Card design (Brea): wreath photo, "Cub Scout [name] stopped by", no product list, QR code to our family's order page. One card design per scout; each scout's QR carries their name so the order is credited to them automatically (customer can still change it).
+* Order page shows our products with photos and prices, address goes to that house's box on our map, Venmo link with amount filled in, or "Pay on delivery."
