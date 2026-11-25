@@ -47,4 +47,5 @@ New accounts start fully set up so nobody has to configure anything:
 * Statuses: Yes bought, Donation, No, Not home, Come back, Took my number, with the same colors as Brea's map.
 * Products and prices: copied from Brea's current list (wreaths, garlands, etc.), updated each season.
 * Current season already created and active.
-* Recommended: the core statuses are locked so the overlay reads the same across every family. Families can add their own extra statuses and adjust prices if their pack differs.
+* Core statuses are locked so the overlay reads the same across every family. Families can add their own extra statuses.
+* Products are fully editable per family (Brea's decision): add, remove, rename and reprice items, since other packs may sell different things door to door. Brea's list is only the starting point.
