@@ -150,7 +150,7 @@ body:has(#sheet:not([hidden])) #nearPill{display:none!important} /* the house ca
 .cblist button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:none;padding:11px 12px}
 .cblist button:first-child{border-top:0}
 .cblist b{min-width:96px;font-variant-numeric:tabular-nums}
-.dclist b{min-width:64px}.dclist small{color:var(--muted)}.dcflag{font-style:normal;font-size:11px;font-weight:700;background:#fff3bf;color:#7a5b00;border-radius:999px;padding:1px 6px}
+.dclist b{min-width:64px}.dclist button>span:not(.dcthumb){flex:1;min-width:0}.dcthumb{width:54px;height:54px;display:block;margin-left:auto}.dclist small{color:var(--muted)}.dcflag{font-style:normal;font-size:11px;font-weight:700;background:#fff3bf;color:#7a5b00;border-radius:999px;padding:1px 6px}
 .dcchips{display:flex!important;flex-wrap:nowrap;overflow-x:auto;gap:6px!important;scrollbar-width:none;margin:0 -2px}.dcchips::-webkit-scrollbar{display:none}
 .dcchips .chip{flex:none;min-height:0!important;padding:7px 13px!important;border-radius:999px!important;font-size:13.5px;border:0}
 .dcchips .chip[aria-pressed="true"]{background:var(--ink)!important;color:var(--bg)}.dcchips .chip[aria-pressed="true"]::after{display:none}
@@ -1056,7 +1056,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125194612';
+const BUILD='20261125194749';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD){window.NEWV=v;$('#updPill').hidden=false}}catch(e){}}
 // after an update the address has ?v=...; tidy it back to the plain address
@@ -1473,11 +1473,13 @@ function openDeliveryCheck(){
       if(r.mk.delivered)bits.push('Delivered'+(r.mk.dBy?' by '+esc(r.mk.dBy):'')+(r.mk.dAt?' '+t(r.mk.dAt):'')+' · '+howTxt(r.mk.how)+(r.mk.photo?' · 📷':''));
       else bits.push(r.state==='pickup'?'Will pick up':r.state==='hidden'?'On a hidden house':'Not delivered yet');
       if(!r.mk.paid&&r.o.due)bits.push('owes '+money(r.o.due));
-      return '<button type="button" data-cb="'+esc(r.hid)+'"><b>'+q+' '+(DCF.item?esc(pcode(prodOf(DCF.item))):'items')+'</b><span><strong>'+esc(r.a)+(r.u?' unit '+esc(r.u):'')+'</strong>'+(r.mk.delivered&&!r.mk.how?' <em class="dcflag">check</em>':'')+'<br><small>'+bits.join(' · ')+'</small>'+(DCF.item?'':'<br><small>'+r.o.items.map(it=>it.q+' '+esc(pcode(it.p))).join(', ')+'</small>')+'</span></button>'}).join(''):'<p class="hint" style="padding:12px">Nothing matches these filters.</p>')+'</div>'+
+      return '<button type="button" data-cb="'+esc(r.hid)+'"><b>'+q+' '+(DCF.item?esc(pcode(prodOf(DCF.item))):'items')+'</b><span><strong>'+esc(r.a)+(r.u?' unit '+esc(r.u):'')+'</strong>'+(r.mk.delivered&&!r.mk.how?' <em class="dcflag">check</em>':'')+'<br><small>'+bits.join(' · ')+'</small>'+(DCF.item?'':'<br><small>'+r.o.items.map(it=>it.q+' '+esc(pcode(it.p))).join(', ')+'</small>')+'</span>'+(r.mk.photo?'<span class="dthumb dcthumb" role="button" tabindex="0" aria-label="See delivery photo" data-pv="'+esc(r.k)+'"><img alt="" data-thumb="'+esc(r.k)+'"></span>':'')+'</button>'}).join(''):'<p class="hint" style="padding:12px">Nothing matches these filters.</p>')+'</div>'+
     '<p class="hint">Tap a house to open it. If one was marked delivered by mistake, tap Delivered ✓ on its card to undo it.</p></div>';
   openSheet(body);
   sheet.querySelector('#dcItem').addEventListener('change',e=>{DCF.item=e.target.value;openDeliveryCheck()});
   sheet.querySelectorAll('[data-dcf]').forEach(b=>b.addEventListener('click',()=>{DCF[b.getAttribute('data-dcf')]=b.getAttribute('data-v');openDeliveryCheck()}));
+  sheet.querySelectorAll('.dclist [data-thumb]').forEach(img=>getPhoto(img.getAttribute('data-thumb')).then(u=>{if(u)img.src=u}));
+  sheet.querySelectorAll('[data-pv]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const k=b.getAttribute('data-pv');showPhotoModal(k,k.split('|')[0],(S.marks[S.active]||{})[k]||{})}));
   sheet.querySelectorAll('[data-cb]').forEach(b=>b.addEventListener('click',()=>{closeSheet();goToHouse(b.getAttribute('data-cb'))}));
 }
 function openPickups(){
@@ -1580,6 +1582,9 @@ async function savePhoto(key,url,geo){
   // with no signal the photo waits on the phone and uploads later; only stop on a real refusal
   await Promise.race([w,new Promise(r=>setTimeout(r,4000))]).catch(e=>{if(e&&e.code==='permission-denied')throw new Error('Your account rules do not allow photos yet');throw e});
 }
+function showPhotoModal(key,hid,mk){getPhoto(key).then(u=>{if(!u)return toast('Photo not loaded yet. Check your connection.');const bg=document.createElement('div');bg.className='modal-bg';
+  bg.innerHTML='<div class="modal" style="padding:10px"><img src="'+u+'" alt="Delivery photo" style="width:100%;border-radius:14px;display:block"><p class="hint" style="margin:8px 4px">'+esc(addrOf(H[hid])||'')+(mk.dBy?' \u00b7 by '+esc(mk.dBy):'')+(mk.photo?' \u00b7 '+new Date(mk.photo).toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):'')+(mk.pgeo?'<br>'+geoText(mk.pgeo):'')+'</p><button class="btn" style="width:100%">Close</button></div>';
+  document.body.appendChild(bg);bg.addEventListener('click',e=>{if(e.target===bg||e.target.closest('button'))bg.remove()})})}
 async function getPhoto(key){const ck=S.active+'|'+key;if(photoCache[ck])return photoCache[ck];if(!SY.db)return null;
   try{const d=await SY.db.collection('photos').doc(photoId(key)).get();const u=d.exists&&d.data().img;if(u)photoCache[ck]=u;return u||null}catch(e){return null}}
 function deviceName(){try{return localStorage.getItem('sdm.devname')||''}catch(e){return ''}}
