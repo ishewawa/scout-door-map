@@ -154,6 +154,15 @@ body:has(#sheet:not([hidden])) #nearPill{display:none!important} /* the house ca
 .dcchips{display:flex!important;flex-wrap:nowrap;overflow-x:auto;gap:6px!important;scrollbar-width:none;margin:0 -2px}.dcchips::-webkit-scrollbar{display:none}
 .dcchips .chip{flex:none;min-height:0!important;padding:7px 13px!important;border-radius:999px!important;font-size:13.5px;border:0}
 .dcchips .chip[aria-pressed="true"]{background:var(--ink)!important;color:var(--bg)}.dcchips .chip[aria-pressed="true"]::after{display:none}
+.tchip.inb{background:#1f6f43;color:#fff}.tchip.inb b{color:#fff}
+.inbx{border-radius:14px;padding:12px;background:color-mix(in srgb,var(--ink) 5%,var(--surface));display:flex;flex-direction:column;gap:4px}
+.inbx-top{display:flex;justify-content:space-between;gap:8px}.inbx-top b{font-size:16px}.inbx-top span{font-size:12.5px;color:var(--muted)}
+.inbx-addr{font-weight:600}.inbx-what{font-size:14px}.inbx .row{margin-top:6px}.inbx .btn.sure{background:#b3261e;color:#fff}
+.f2{display:block}.f2 span{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 2px 5px}
+.qrs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.qrc{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px;border-radius:14px;background:color-mix(in srgb,var(--ink) 5%,var(--surface))}
+.qri{width:120px;height:120px;background:#fff;border-radius:8px}.qri svg{width:100%;height:100%;display:block}
+.qrc .row{gap:6px;justify-content:center;flex-wrap:wrap}.qrc .btn{text-decoration:none}
 .dcsum{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}.dcsum b{color:var(--ink);font-size:16px}
 @media (max-width:460px){.brand .bw{display:none}}
 .scout-sel{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 8px;font:600 13px/1 var(--body);max-width:130px}
@@ -1056,7 +1065,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125194749';
+const BUILD='20261125202049';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD){window.NEWV=v;$('#updPill').hidden=false}}catch(e){}}
 // after an update the address has ?v=...; tidy it back to the plain address
@@ -1079,14 +1088,14 @@ function renderTally(){try{if(S.deliver||PREVIEW)drawRouteOverlay()}catch(e){}se
   const m=S.marks[S.active]||{};
   if(S.deliver){let todo=0,done=0,pick=0;const left={};const prods=prodsFor(S.active);
     for(const k in m){const hid=k.split('|')[0];if(!H[hid]||H[hid].x)continue;const o=orderOf(k);if(!o)continue;if(m[k].delivered){done++;continue}if(m[k].how==='pickup'){pick++;continue}todo++;for(const it of o.items)left[it.p.id]=(left[it.p.id]||0)+it.q}
-    $('#tally').innerHTML='<span id="liveChips" style="display:contents"></span>'+(ROUTE?'<button type="button" class="tchip rt on" id="routesBtn">\ud83d\uddfa '+esc(ROUTE.name)+' \u00b7 <b>'+routeLeft()+'</b> left</button>':'<button type="button" class="tchip rt" id="routesBtn">\ud83d\uddfa Routes</button>')+'<button type="button" class="tchip share" id="shareRoute">\u2197 Share route</button><span class="tchip dv">To deliver <b>'+todo+'</b></span><button type="button" class="tchip itf" id="itemFilter">'+(DSKIP.length?'Ready <b>'+holdCount()+'</b>':'\u2611 Filter items')+'</button>'+(pick?'<button type="button" class="tchip pk" id="pickupList">\ud83d\udce6 Pickup <b>'+pick+'</b></button>':'')+'<button type="button" class="tchip" data-chk="">\u2714 Delivered <b>'+done+'</b></button><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #2f9e44 inset"></i>Paid</span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #e03131 inset"></i>Owes</span>'+prods.filter(p=>left[p.id]).map(p=>'<button type="button" class="tchip" data-chk="'+esc(p.id)+'">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></button>').join('');
+    $('#tally').innerHTML='<span id="liveChips" style="display:contents"></span>'+inboxChip()+(ROUTE?'<button type="button" class="tchip rt on" id="routesBtn">\ud83d\uddfa '+esc(ROUTE.name)+' \u00b7 <b>'+routeLeft()+'</b> left</button>':'<button type="button" class="tchip rt" id="routesBtn">\ud83d\uddfa Routes</button>')+'<button type="button" class="tchip share" id="shareRoute">\u2197 Share route</button><span class="tchip dv">To deliver <b>'+todo+'</b></span><button type="button" class="tchip itf" id="itemFilter">'+(DSKIP.length?'Ready <b>'+holdCount()+'</b>':'\u2611 Filter items')+'</button>'+(pick?'<button type="button" class="tchip pk" id="pickupList">\ud83d\udce6 Pickup <b>'+pick+'</b></button>':'')+'<button type="button" class="tchip" data-chk="">\u2714 Delivered <b>'+done+'</b></button><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #2f9e44 inset"></i>Paid</span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #e03131 inset"></i>Owes</span>'+prods.filter(p=>left[p.id]).map(p=>'<button type="button" class="tchip" data-chk="'+esc(p.id)+'">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></button>').join('');
     const t=seasonTotals(S.active);$('#money').innerHTML='<span>Delivery mode</span>'+(t.unpaid?'<span class="unp">Still to collect <b>'+money(t.unpaid)+'</b></span>':'<span>All paid</span>');return}const cnt={};for(const id in m){const st=m[id].st;if(st)cnt[st]=(cnt[st]||0)+1}
   let paid=0,unpaid=0;for(const id in m){if(m[id].paid)paid++;else if(needsPay(id))unpaid++}
   const t=seasonTotals(S.active);
   let kid='';if(S.lastSeller){let ks=0,kd=0,ky=0;for(const k in m){if(m[k].seller!==S.lastSeller||!H[k.split('|')[0]])continue;ks+=+m[k].sale||0;kd+=+m[k].don||0;if(m[k].st==='yes')ky++}
     kid='<span class="kid">'+esc(S.lastSeller)+': '+[TB.sale?'Sales <b>'+money(ks)+'</b>':'',TB.don?'Donated <b>'+money(kd)+'</b>':'',TB.total?'Total <b>'+money(TB.don?ks+kd:ks)+'</b>':'',ky+' yes'].filter(Boolean).join(' \u00b7 ')+'</span>'}
   $('#money').innerHTML=kid+(TB.sale?'<span>Sales <b>'+money(t.sale)+'</b></span>':'')+(TB.unpaid&&(TB.don?t.unpaid:t.unpaidSale)?'<span class="unp">Not paid <b>'+money(TB.don?t.unpaid:t.unpaidSale)+'</b></span>':'')+(TB.don?'<span>Donations <b>'+money(t.don)+'</b></span>':'')+(TB.total?'<span class="gt">Total <b>'+money(TB.don?t.total:t.total-t.don)+'</b></span>':'')+(()=>{const all=TB.sale&&TB.unpaid&&TB.don&&TB.total;return '<button type="button" class="tbf'+(all?'':' on')+'" id="tbFilter" aria-haspopup="true" aria-label="'+(all?'Filter the top bar':'Top bar is filtered')+'">'+(all?'Filter':'Filtered')+'</button>'})();
-  $('#tally').innerHTML=S.statuses.filter(s=>!hideDonSt(s.id)).map(s=>'<span class="tchip"><i style="background:'+s.color+'"></i>'+esc(s.label)+' <b>'+(cnt[s.id]||0)+'</b></span>').join('')+'<span class="tchip">Paid <b>'+paid+'</b></span>'+(unpaid?'<span class="tchip warn">Not paid <b>'+unpaid+'</b></span>':'');
+  $('#tally').innerHTML=inboxChip()+S.statuses.filter(s=>!hideDonSt(s.id)).map(s=>'<span class="tchip"><i style="background:'+s.color+'"></i>'+esc(s.label)+' <b>'+(cnt[s.id]||0)+'</b></span>').join('')+'<span class="tchip">Paid <b>'+paid+'</b></span>'+(unpaid?'<span class="tchip warn">Not paid <b>'+unpaid+'</b></span>':'');
 }
 $('#seasonPill').addEventListener('click',()=>selectTab('seasons'));
 function renderScoutSel(){const sel=$('#scoutSel');sel.innerHTML='<option value="">Scout: none</option>'+sellers().map(n=>'<option value="'+esc(n)+'"'+(S.lastSeller===n?' selected':'')+'>'+esc(n)+'</option>').join('')}
@@ -1437,7 +1446,126 @@ function openRoutes(){
   openSheet('<div class="sh-head"><div class="sh-title"><h2>Routes</h2><p>What to load, and which houses go together</p></div>'+X+'</div><div class="sh-body"></div>',true);
   draw();
 }
-document.getElementById('tally').addEventListener('click',e=>{const ck=e.target.closest('[data-chk]');if(ck){const id=ck.getAttribute('data-chk');DCF.item=id;DCF.status=id?'all':'done';DCF.by='';DCF.how='';DCF.photo='';openDeliveryCheck();return}if(e.target.closest('[data-shareme]')){try{localStorage.removeItem('sdm.trackoff')}catch(x){}startTracking(false);setTimeout(renderTallyLive,300);return}const lv=e.target.closest('[data-live]');if(lv){const p=LIVE[lv.getAttribute('data-live')];if(p&&p.lat){if(typeof setFollow==='function')setFollow(false);map.flyTo([p.lat,p.lng],17)}}if(e.target.closest('#routesBtn'))openRoutes();if(e.target.closest('#itemFilter'))openItemFilter();if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
+document.getElementById('tally').addEventListener('click',e=>{if(e.target.closest('#inboxBtn')){openInbox();return}const ck=e.target.closest('[data-chk]');if(ck){const id=ck.getAttribute('data-chk');DCF.item=id;DCF.status=id?'all':'done';DCF.by='';DCF.how='';DCF.photo='';openDeliveryCheck();return}if(e.target.closest('[data-shareme]')){try{localStorage.removeItem('sdm.trackoff')}catch(x){}startTracking(false);setTimeout(renderTallyLive,300);return}const lv=e.target.closest('[data-live]');if(lv){const p=LIVE[lv.getAttribute('data-live')];if(p&&p.lat){if(typeof setFollow==='function')setFollow(false);map.flyTo([p.lat,p.lng],17)}}if(e.target.closest('#routesBtn'))openRoutes();if(e.target.closest('#itemFilter'))openItemFilter();if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
+/* card orders: the order page your QR codes open. Orders go straight onto their house on the map.
+   Only orders the app can't place on its own (address not found, which unit, season removed) wait in a short "needs a look" list. */
+let INBOX=[],inboxErr='',inboxBusy=false;const inboxWhy={};
+async function loadInbox(){if(!SY.db||!SY.ready||inboxBusy)return;inboxBusy=true;
+  try{const snap=await SY.db.collection('inbox').get();const a=[];snap.forEach(d=>{const o=d.data();if(o)a.push(Object.assign({},o,{id:d.id}))});a.sort((x,y)=>(+x.t||0)-(+y.t||0));INBOX=a;inboxErr='';
+    for(const o of a.slice()){if(inboxWhy[o.id])continue;const r=await placeCardOrder(o,null);if(r.ok){INBOX=INBOX.filter(x=>x.id!==o.id);toast('New card order: '+r.where)}else if(r.why)inboxWhy[o.id]=r.why}}
+  catch(e){inboxErr=(e&&e.code)||'error'}
+  inboxBusy=false;renderTally();if(sheetKind==='inbox')openInbox()}
+setInterval(()=>{if(!document.hidden)loadInbox()},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(loadInbox,1200)});
+function inboxChip(){return INBOX.length?'<button type="button" class="tchip inb" id="inboxBtn">📥 Card orders to check <b>'+INBOX.length+'</b></button>':''}
+function seasonName(id){const s=S.seasons.find(x=>x.id===id);return s?s.name:'a removed season'}
+function cardItemsText(o,sid){const ps=prodsFor(sid);return Object.keys(o.items||{}).filter(k=>+o.items[k]).map(k=>{const p=ps.find(x=>x.id===k);return o.items[k]+' '+(p?pcode(p):k)}).join(', ')}
+function openInbox(){
+  sheetKind='inbox';
+  const rows=INBOX.map(o=>{const sid=S.seasons.find(s=>s.id===o.season)?o.season:S.active;const items=cardItemsText(o,sid);
+    return '<div class="inbx" data-o="'+esc(o.id)+'"><div class="inbx-top"><b>'+esc(o.name||'No name')+'</b><span>'+(o.t?new Date(+o.t).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'')+'</span></div>'+
+      '<div class="inbx-addr">'+esc(o.addr||'')+(o.unit?' unit '+esc(o.unit):'')+(o.city?', '+esc(o.city):'')+'</div>'+
+      '<div class="inbx-what">'+(items?esc(items):'')+(items&&+o.don?' + ':'')+(+o.don?money(+o.don)+' donation':'')+' · <b>'+money(+o.total||0)+'</b></div>'+
+      '<div class="hint">'+(o.seller?esc(o.seller)+'’s card · ':'')+(o.pay==='venmo'?'Says paying with Venmo':'Pay on delivery')+(o.phone?' · '+esc(o.phone):'')+'</div>'+
+      (o.note?'<div class="hint">Note: '+esc(o.note)+'</div>':'')+
+      '<p class="hint" style="color:#b3261e;font-weight:600;margin:4px 0 0">'+esc(inboxWhy[o.id]||'')+'</p>'+
+      '<div class="inbx-unit" hidden></div>'+
+      '<div class="row"><button class="btn primary" data-add>Try again</button><button class="btn" data-del>Delete</button></div></div>'}).join('');
+  openSheet('<div class="sh-head"><div class="sh-title"><h2>Card orders to check</h2><p>Card orders go on the map by themselves. These couldn’t, so they need a look.</p></div>'+X+'</div><div class="sh-body">'+
+    (rows||'<p class="hint">Nothing to check. Every card order is on the map.</p>')+'</div>');
+  sheet.querySelectorAll('.inbx').forEach(card=>{const o=INBOX.find(x=>x.id===card.getAttribute('data-o'));if(!o)return;
+    const add=card.querySelector('[data-add]'),del=card.querySelector('[data-del]');
+    add.addEventListener('click',async()=>{add.disabled=true;add.textContent='Placing it...';const r=await placeCardOrder(o,card);
+      if(r.ok){delete inboxWhy[o.id];INBOX=INBOX.filter(x=>x.id!==o.id);renderTally();toast('Added to '+r.where);closeSheet();goToHouse(r.hid)}
+      else{inboxWhy[o.id]=r.why||inboxWhy[o.id];add.disabled=false;add.textContent=r.unitAsk?'Add to this unit':'Try again';if(!r.unitAsk){const w=card.querySelector('p.hint');if(w)w.textContent=r.why||''}}});
+    del.addEventListener('click',async()=>{if(!del.classList.contains('sure')){del.classList.add('sure');del.textContent='Tap again to delete';return}
+      del.disabled=true;if(await deleteInbox(o.id)){toast('Card order deleted');openInbox()}else{del.disabled=false;toast('Could not delete. Check your connection.')}})});
+}
+async function deleteInbox(id){try{await SY.db.collection('inbox').doc(id).delete();INBOX=INBOX.filter(x=>x.id!==id);renderTally();return true}catch(e){return false}}
+// only one phone may place each order, so two phones never add it twice
+async function claimInbox(id){const ref=SY.db.collection('inbox').doc(id);
+  try{if(SY.db.runTransaction)return await SY.db.runTransaction(async tx=>{const d=await tx.get(ref);if(!d.exists)return false;tx.delete(ref);return true});
+    const d=await ref.get();if(!d.exists)return false;await ref.delete();return true}catch(e){return false}}
+const normSt=s=>String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+function parseAddr(a){const m=/^\s*(\d+[a-z]?)\s+(.+?)\s*$/i.exec(String(a||''));return m?{n:m[1].toUpperCase(),s:m[2]}:null}
+function matchHouse(o){const pa=parseAddr(o.addr);if(!pa)return null;const first=normSt(pa.s).split(' ')[0];
+  for(const hid in H){const h=H[hid];if(!h||h.x||!h.n)continue;if(String(h.n).toUpperCase()===pa.n&&normSt(h.s).split(' ')[0]===first)return hid}return null}
+async function geocodeOrder(o){
+  let near='';const ids=Object.keys(H);if(ids.length){const c=H[ids[0]].c;near='&location='+c[1]+','+c[0]}
+  try{const r=await fetchT('https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&maxLocations=1&outFields=AddNum,StPreDir,StName,StType&SingleLine='+encodeURIComponent([o.addr,o.city].filter(Boolean).join(', '))+near,{},8000);
+    const j=await r.json();const c=j&&j.candidates&&j.candidates[0];if(!c||c.score<80)return null;const a=c.attributes||{};
+    return{c:[r6(c.location.y),r6(c.location.x)],n:String(a.AddNum||(parseAddr(o.addr)||{}).n||''),s:[a.StPreDir,a.StName,a.StType].filter(Boolean).join(' ')||(parseAddr(o.addr)||{}).s||''}}catch(e){return{err:1}}}
+function nearHouse(c,n){let best=null,bd=40;for(const hid in H){const h=H[hid];if(!h||h.x||!h.c)continue;if(h.n&&n&&String(h.n).toUpperCase()!==String(n).toUpperCase())continue;
+  const d=map.distance(L.latLng(c),L.latLng(h.c));if(d<bd){bd=d;best=hid}}return best}
+// put one card order on its house, the same way you'd enter it at the door
+async function placeCardOrder(o,card){
+  const sid=o.season||S.card&&S.card.season||S.active;
+  if(!S.seasons.find(s=>s.id===sid))return{why:'This order is for a season that isn’t in your app anymore.'};
+  let hid=matchHouse(o),geo=null;
+  if(!hid){geo=await geocodeOrder(o);if(!geo)return{why:'Couldn’t find this address on the map. Check it with them, then add it by hand.'};if(geo.err)return{};
+    hid=nearHouse(geo.c,geo.n)}
+  const h=hid&&H[hid];let unit=null;
+  if(h&&hasUnits(h)){const box=card&&card.querySelector('.inbx-unit');const sel=box&&box.querySelector('select');
+    let u=sel?sel.value:'';if(!u&&o.unit){const want=normSt(o.unit);u=h.u.find(x=>normSt(x)===want||normSt(x).endsWith(' '+want))||''}
+    if(!u){if(box){box.hidden=false;box.innerHTML='<p class="hint" style="margin:6px 0 4px">'+esc(addrOf(h))+' has units. Which one?</p><select aria-label="Unit">'+h.u.map(x=>'<option>'+esc(x)+'</option>').join('')+'</select>'}
+      return{why:esc(addrOf(h))+' has units. Pick which one.',unitAsk:1}}
+    unit=u}
+  if(!(await claimInbox(o.id)))return{gone:1}; // another phone already placed it
+  if(!hid){hid='c'+Date.now().toString(36);H[hid]={c:geo.c,p:square(geo.c,7),n:geo.n,s:geo.s,e:1,custom:1};ensurePoly(hid);saveH()}
+  const key=unit?hid+'|'+unit:hid;
+  if(!S.marks[sid])S.marks[sid]={};
+  const cur=S.marks[sid][key]||{};
+  const items=Object.assign({},cur.items||{});for(const id in o.items||{})items[id]=(+items[id]||0)+(+o.items[id]||0);
+  const hasItems=Object.keys(items).some(k=>+items[k]);
+  const donSt=(S.statuses.find(s=>s.id==='donation')||S.statuses.find(s=>/donat/i.test(s.label))||{}).id;
+  const bits=['Card order from '+(o.name||'')+(o.phone?' ('+o.phone+')':'')];if(o.note)bits.push(o.note);if(o.pay==='venmo')bits.push('Says they paid on Venmo, check it');
+  const v=Object.assign({st:null,note:'',paid:false,pay:{},sale:0,don:0},cur,{st:hasItems?'yes':(donSt||'yes'),don:Math.round(((+cur.don||0)+(+o.don||0))*100)/100,note:(cur.note?cur.note+'\n':'')+bits.join('. '),card:1,t:Date.now()});
+  if(hasItems){v.items=items;v.sale=itemsTotal(sid,items)}
+  if(o.seller)v.seller=o.seller;
+  if(o.phone&&!v.phone)v.phone=o.phone;
+  S.marks[sid][key]=v;keepHouse(hid);S.dirty=(S.dirty||0)+1;saveS();
+  if(sid===S.active){restyle(hid);if(map.getZoom()>=18)drawLabels()}renderTally();renderSafe();
+  if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()}
+  return{ok:1,hid,where:(addrOf(H[hid])||'the map')+(sid===S.active?'':' ('+seasonName(sid)+')')};
+}
+// Settings: publish the order page and get a QR code for each scout
+function orderLink(seller){return location.origin+location.pathname.replace(/[^/]*$/,'')+'order.html'+(seller?'?s='+encodeURIComponent(seller):'')}
+function openCardSetup(msg){
+  sheetKind='cards';const c=S.card||(S.card={});
+  const sid=c.season&&S.seasons.find(s=>s.id===c.season)?c.season:S.active;
+  openSheet('<div class="sh-head"><div class="sh-title"><h2>Card orders</h2><p>QR codes for door cards. Orders go straight onto the map.</p></div>'+X+'</div><div class="sh-body">'+
+    (msg?'<p class="hint" style="color:'+(msg.ok?'#2f9e44':'#b3261e')+';font-weight:600">'+esc(msg.t)+'</p>':'')+
+    (inboxErr==='permission-denied'?'<p class="hint" style="color:#b3261e;font-weight:600">Your Firebase rules don’t allow card orders yet. Add the card orders rule in the Firebase console, then come back.</p>':'')+
+    '<div><p class="label">Orders go into</p><select id="cdSeason">'+S.seasons.slice().reverse().map(s=>'<option value="'+esc(s.id)+'"'+(s.id===sid?' selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>'+
+      '<p class="hint">Products and prices on the order page come from this season.</p></div>'+
+    '<label class="f2"><span>Group name</span><input type="text" id="cdGroup" value="'+esc(c.group||'Cub Scouts')+'" maxlength="40"></label>'+
+    '<label class="f2"><span>Call or text (your first name)</span><input type="text" id="cdWho" value="'+esc(c.who||'')+'" maxlength="30" placeholder="Brea"></label>'+
+    '<label class="f2"><span>Phone shown on the order page</span><input type="text" id="cdPhone" inputmode="tel" value="'+esc(c.phone||'')+'" maxlength="30"></label>'+
+    '<label class="f2"><span>City (filled in for customers)</span><input type="text" id="cdCity" value="'+esc(c.city||'Woodbury, MN')+'" maxlength="60"></label>'+
+    '<label class="soldby" style="margin:4px 0"><input type="checkbox" id="cdOpen"'+(c.open!==false?' checked':'')+' style="width:22px;height:22px"> <span>Taking orders</span></label>'+
+    '<button class="btn primary" id="cdPub" style="width:100%">Publish order page</button>'+
+    '<p class="hint">Publish again after changing prices, products or anything above. Venmo: '+(S.venmo?esc(S.venmo):'not set')+'.</p>'+
+    '<div><p class="label">QR code for each scout</p><div class="qrs">'+sellers().map(n=>'<div class="qrc"><div class="qri" data-qr="'+esc(n)+'"></div><b>'+esc(n)+'</b>'+
+      '<div class="row"><a class="btn small" data-qrsave="'+esc(n)+'" download="'+esc(n)+'-order-qr.png">Save QR</a><a class="btn small" href="'+esc(orderLink(n))+'" target="_blank" rel="noopener">Open page</a></div></div>').join('')+'</div>'+
+      '<p class="hint">Print the QR on each scout’s card. Orders from it go straight onto their house on the map, credited to that scout.</p></div>'+
+    (INBOX.length?'<button class="btn" id="cdInbox" style="width:100%">Card orders to check ('+INBOX.length+')</button>':'')+
+    '</div>');
+  const get=id=>sheet.querySelector(id);
+  (qrLib?Promise.resolve():loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js').then(()=>{qrLib=window.qrcode})).then(()=>{
+    sheet.querySelectorAll('[data-qr]').forEach(el=>{const n=el.getAttribute('data-qr');const q=qrLib(0,'M');q.addData(orderLink(n));q.make();
+      el.innerHTML=q.createSvgTag({cellSize:4,margin:2,scalable:true});const a=sheet.querySelector('[data-qrsave="'+CSS.escape(n)+'"]');if(a)a.href=q.createDataURL(10,4)})}).catch(()=>{});
+  const keep=()=>{c.season=get('#cdSeason').value;c.group=get('#cdGroup').value.trim()||'Cub Scouts';c.who=get('#cdWho').value.trim();c.phone=get('#cdPhone').value.trim();c.city=get('#cdCity').value.trim();c.open=get('#cdOpen').checked;saveS()};
+  sheet.querySelectorAll('#cdSeason,#cdGroup,#cdWho,#cdPhone,#cdCity,#cdOpen').forEach(i=>i.addEventListener('change',keep));
+  const ib=get('#cdInbox');if(ib)ib.addEventListener('click',openInbox);
+  get('#cdPub').addEventListener('click',async()=>{keep();const b=get('#cdPub');
+    if(!SY.db||!SY.ready){openCardSetup({t:'Sign in and connect to your account first.'});return}
+    b.disabled=true;b.textContent='Publishing...';
+    const se=S.seasons.find(s=>s.id===c.season)||{};
+    const doc={open:!!c.open,season:c.season,seasonName:se.name||'',group:c.group,who:c.who||'',phone:c.phone||'',city:c.city||'',venmo:S.venmo||'',sellers:sellers().slice(),
+      products:prodsFor(c.season).filter(p=>+p.price>0).map(p=>({id:p.id,label:p.label,price:+p.price,code:pcode(p)})),t:Date.now()};
+    try{await SY.db.collection('shop').doc('main').set(doc);openCardSetup({ok:1,t:'Published. The order page now shows '+(se.name||'this season')+'’s products'+(c.open?'.':', marked closed.')})}
+    catch(e){openCardSetup({t:(e&&e.code==='permission-denied')?'Firebase blocked this. Add the card orders rule in the Firebase console, then publish again.':'Could not publish. Check your connection and try again.'})}});
+}
 // Delivery check: every order this season, filterable, to find something delivered wrong
 let DCF={item:'',status:'done',by:'',how:'',photo:''};
 function openDeliveryCheck(){
@@ -1819,6 +1947,7 @@ function openSettings(){
       '<div><p class="label">Products and prices for '+esc((seasonById(S.active)||{}).name||'')+'</p><div class="list" id="prodList">'+
         prodsFor(S.active).map((p,i)=>'<div class="prod-row" data-i="'+i+'"><input type="text" class="pl" value="'+esc(p.label)+'" aria-label="Product name" data-pl><input type="text" class="pc" value="'+esc(pcode(p))+'" maxlength="4" aria-label="Short code for delivery labels" title="Short code" data-pcode autocapitalize="characters"><div class="pp"><b class="muted">$</b><input type="text" inputmode="decimal" value="'+p.price+'" aria-label="Price" data-pp></div><button class="icon-btn" data-pdel aria-label="Delete product"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></div>').join('')+
       '</div><div class="row" style="margin-top:8px"><button class="btn" id="addProd">Add a product</button></div><p class="hint" style="margin-top:8px">Each season keeps its own prices. A new season starts with this list. The short code is what shows on the map in delivery mode.</p></div>'+
+      '<div><p class="label">Card orders</p><p class="hint" style="margin-bottom:8px">QR codes for door cards. Orders from them go straight onto the map.</p><button class="btn" id="cardSetup" style="width:100%">Set up card orders'+(INBOX.length?' ('+INBOX.length+' to check)':'')+'</button></div>'+
       '<div><p class="label">Phones</p><p class="hint">This phone: <b>'+esc(deviceName()||'unnamed')+'</b>, location '+(watchId!==null?'on':'off')+', last shared '+(lastShare.t?agoText(lastShare.t):'not yet')+'. App version '+BUILD.slice(4,6)+'/'+BUILD.slice(6,8)+' '+BUILD.slice(8,10)+':'+BUILD.slice(10,12)+' UTC.<br>'+(Object.keys(LIVE).length?Object.keys(LIVE).map(k=>{const p=LIVE[k];return 'Other phone: <b>'+esc(p.name||k)+'</b>, last message '+(p.t?agoText(p.t):'unknown')+(p.off?', location off':'')+(p.lat?'':', no spot')}).join('<br>'):'No other phones have reported yet.')+'</p></div>'+
       (!SYNC_ENABLED?'':'<div><p class="label">Account</p>'+(SY.on&&SY.user?'<p class="hint" style="margin-bottom:8px">Signed in as <b>'+esc(SY.user.email||'')+'</b>. Your map saves to your account and updates on every phone signed in to it.</p>'+syncLine()+'<button class="btn small" id="signOut">Sign out</button>':'<p class="hint" style="margin-bottom:8px">Not signed in. Your map is only on this phone.</p><button class="btn small primary" id="signIn">Sign in</button>')+'</div>')+
       '<div><p class="label">Receipts</p><div style="display:flex;flex-direction:column;gap:8px">'+
@@ -1828,6 +1957,7 @@ function openSettings(){
       '<div><p class="label">Backup</p><p class="hint" style="margin-bottom:8px">'+(SY.on?'Your account keeps your data safe. A backup file is an extra copy you can keep.':'Everything saves on this phone. Export a backup now and then, and to copy your map to another phone, export here and import there.')+'</p><div class="row" style="flex-wrap:wrap"><button class="btn primary" id="exp">Export backup</button><button class="btn" id="imp">Import backup</button></div></div>'+
       '<p class="hint">Tap any house on the map to drop a box for it. House numbers are looked up from OpenStreetMap when you tap.</p>'+
     '</div>',true);
+  {const cs=sheet.querySelector('#cardSetup');if(cs)cs.addEventListener('click',()=>openCardSetup())}
   const list=sheet.querySelector('#stList');
   list.addEventListener('input',e=>{const row=e.target.closest('.st-row');if(!row)return;const s=S.statuses[+row.getAttribute('data-i')];
     if(e.target.hasAttribute('data-color'))s.color=e.target.value;if(e.target.hasAttribute('data-dot'))s.dot=e.target.value;if(e.target.hasAttribute('data-label'))s.label=e.target.value||'Untitled';saveS();restyleAll()});
@@ -2232,7 +2362,7 @@ async function startSync(user){
       if(lm){(newM[sid]=newM[sid]||{})[k]=lm}else if(newM[sid])delete newM[sid][k]}
     if(lk in last)last[lk]='\u0000'}
   H=newH;S.marks=newM;
-  SY.last=last;SY.ready=true;SY.on=true;SY.since=Date.now();setTimeout(()=>shareNow(true),500);
+  SY.last=last;SY.ready=true;SY.on=true;SY.since=Date.now();setTimeout(()=>shareNow(true),500);setTimeout(loadInbox,2000);
   save('sdm.synced',FB_CONFIG.projectId+':'+user.uid);
   save(KS,S);{const out={};for(const id in H)if(!H[id].temp)out[id]=H[id];save(KH,out)}
   SY.unsent={};saveUnsent();
