@@ -83,3 +83,14 @@ Seen in 2026: a house already had another scout's wreath on the porch when we de
 * Works in the browser without installing, so nobody is blocked.
 * Test everything on a real iPhone: location, camera, photos, Venmo link, navigation (opens Apple or Google Maps). Flash/torch likely doesn't work in iPhone Safari; fall back to brightening the photo.
 * Later, if needed: real App Store and Google Play listings by wrapping the same app (Apple developer account about $99 a year, Google about $25 once, plus review).
+
+## Door cards with a QR order form (Brea's idea, Nov 25 2026)
+
+Leave a business card at every house that isn't home. The card has our phone number and a QR code that opens an order form. Orders flow into the app.
+* Card: "Sorry we missed you!", item photos/prices or a short list, phone number, QR code. No kids' full names or home address.
+* Order form (web page, phone friendly): name, address, phone, items and quantities, optional donation, pay now with Venmo link (amount filled in) or pay on delivery.
+* Orders land in an "Inbox" in the app first. Brea approves each one, the app matches the address to the house on the map, and it becomes a normal order (status Yes, bought).
+* Customer sees a confirmation with our phone number, so anyone who never gets their order knows who to call.
+* Safety: the form can only add to the inbox, never read or change the map. Basic spam protection. Orders close on a set date.
+* Optional later: mark houses where a card was left ("Card left") so we know who got one, and see which cards turned into orders.
+* Also solves missing deliveries: every customer, in person or by card, ends up with our number.
