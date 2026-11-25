@@ -150,6 +150,11 @@ body:has(#sheet:not([hidden])) #nearPill{display:none!important} /* the house ca
 .cblist button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:none;padding:11px 12px}
 .cblist button:first-child{border-top:0}
 .cblist b{min-width:96px;font-variant-numeric:tabular-nums}
+.dclist b{min-width:64px}.dclist small{color:var(--muted)}.dcflag{font-style:normal;font-size:11px;font-weight:700;background:#fff3bf;color:#7a5b00;border-radius:999px;padding:1px 6px}
+.dcchips{display:flex!important;flex-wrap:nowrap;overflow-x:auto;gap:6px!important;scrollbar-width:none;margin:0 -2px}.dcchips::-webkit-scrollbar{display:none}
+.dcchips .chip{flex:none;min-height:0!important;padding:7px 13px!important;border-radius:999px!important;font-size:13.5px;border:0}
+.dcchips .chip[aria-pressed="true"]{background:var(--ink)!important;color:var(--bg)}.dcchips .chip[aria-pressed="true"]::after{display:none}
+.dcsum{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}.dcsum b{color:var(--ink);font-size:16px}
 @media (max-width:460px){.brand .bw{display:none}}
 .scout-sel{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 8px;font:600 13px/1 var(--body);max-width:130px}
 .scout-sel option{color:#111}
@@ -1051,7 +1056,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125035621';
+const BUILD='20261125194612';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD){window.NEWV=v;$('#updPill').hidden=false}}catch(e){}}
 // after an update the address has ?v=...; tidy it back to the plain address
@@ -1074,7 +1079,7 @@ function renderTally(){try{if(S.deliver||PREVIEW)drawRouteOverlay()}catch(e){}se
   const m=S.marks[S.active]||{};
   if(S.deliver){let todo=0,done=0,pick=0;const left={};const prods=prodsFor(S.active);
     for(const k in m){const hid=k.split('|')[0];if(!H[hid]||H[hid].x)continue;const o=orderOf(k);if(!o)continue;if(m[k].delivered){done++;continue}if(m[k].how==='pickup'){pick++;continue}todo++;for(const it of o.items)left[it.p.id]=(left[it.p.id]||0)+it.q}
-    $('#tally').innerHTML='<span id="liveChips" style="display:contents"></span>'+(ROUTE?'<button type="button" class="tchip rt on" id="routesBtn">\ud83d\uddfa '+esc(ROUTE.name)+' \u00b7 <b>'+routeLeft()+'</b> left</button>':'<button type="button" class="tchip rt" id="routesBtn">\ud83d\uddfa Routes</button>')+'<button type="button" class="tchip share" id="shareRoute">\u2197 Share route</button><span class="tchip dv">To deliver <b>'+todo+'</b></span><button type="button" class="tchip itf" id="itemFilter">'+(DSKIP.length?'Ready <b>'+holdCount()+'</b>':'\u2611 Filter items')+'</button>'+(pick?'<button type="button" class="tchip pk" id="pickupList">\ud83d\udce6 Pickup <b>'+pick+'</b></button>':'')+'<span class="tchip">Delivered <b>'+done+'</b></span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #2f9e44 inset"></i>Paid</span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #e03131 inset"></i>Owes</span>'+prods.filter(p=>left[p.id]).map(p=>'<span class="tchip">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></span>').join('');
+    $('#tally').innerHTML='<span id="liveChips" style="display:contents"></span>'+(ROUTE?'<button type="button" class="tchip rt on" id="routesBtn">\ud83d\uddfa '+esc(ROUTE.name)+' \u00b7 <b>'+routeLeft()+'</b> left</button>':'<button type="button" class="tchip rt" id="routesBtn">\ud83d\uddfa Routes</button>')+'<button type="button" class="tchip share" id="shareRoute">\u2197 Share route</button><span class="tchip dv">To deliver <b>'+todo+'</b></span><button type="button" class="tchip itf" id="itemFilter">'+(DSKIP.length?'Ready <b>'+holdCount()+'</b>':'\u2611 Filter items')+'</button>'+(pick?'<button type="button" class="tchip pk" id="pickupList">\ud83d\udce6 Pickup <b>'+pick+'</b></button>':'')+'<button type="button" class="tchip" data-chk="">\u2714 Delivered <b>'+done+'</b></button><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #2f9e44 inset"></i>Paid</span><span class="tchip"><i style="background:transparent;box-shadow:0 0 0 2px #e03131 inset"></i>Owes</span>'+prods.filter(p=>left[p.id]).map(p=>'<button type="button" class="tchip" data-chk="'+esc(p.id)+'">'+esc(pcode(p))+' <b>'+left[p.id]+'</b></button>').join('');
     const t=seasonTotals(S.active);$('#money').innerHTML='<span>Delivery mode</span>'+(t.unpaid?'<span class="unp">Still to collect <b>'+money(t.unpaid)+'</b></span>':'<span>All paid</span>');return}const cnt={};for(const id in m){const st=m[id].st;if(st)cnt[st]=(cnt[st]||0)+1}
   let paid=0,unpaid=0;for(const id in m){if(m[id].paid)paid++;else if(needsPay(id))unpaid++}
   const t=seasonTotals(S.active);
@@ -1432,7 +1437,49 @@ function openRoutes(){
   openSheet('<div class="sh-head"><div class="sh-title"><h2>Routes</h2><p>What to load, and which houses go together</p></div>'+X+'</div><div class="sh-body"></div>',true);
   draw();
 }
-document.getElementById('tally').addEventListener('click',e=>{if(e.target.closest('[data-shareme]')){try{localStorage.removeItem('sdm.trackoff')}catch(x){}startTracking(false);setTimeout(renderTallyLive,300);return}const lv=e.target.closest('[data-live]');if(lv){const p=LIVE[lv.getAttribute('data-live')];if(p&&p.lat){if(typeof setFollow==='function')setFollow(false);map.flyTo([p.lat,p.lng],17)}}if(e.target.closest('#routesBtn'))openRoutes();if(e.target.closest('#itemFilter'))openItemFilter();if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
+document.getElementById('tally').addEventListener('click',e=>{const ck=e.target.closest('[data-chk]');if(ck){const id=ck.getAttribute('data-chk');DCF.item=id;DCF.status=id?'all':'done';DCF.by='';DCF.how='';DCF.photo='';openDeliveryCheck();return}if(e.target.closest('[data-shareme]')){try{localStorage.removeItem('sdm.trackoff')}catch(x){}startTracking(false);setTimeout(renderTallyLive,300);return}const lv=e.target.closest('[data-live]');if(lv){const p=LIVE[lv.getAttribute('data-live')];if(p&&p.lat){if(typeof setFollow==='function')setFollow(false);map.flyTo([p.lat,p.lng],17)}}if(e.target.closest('#routesBtn'))openRoutes();if(e.target.closest('#itemFilter'))openItemFilter();if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
+// Delivery check: every order this season, filterable, to find something delivered wrong
+let DCF={item:'',status:'done',by:'',how:'',photo:''};
+function openDeliveryCheck(){
+  sheetKind='dcheck';const m=S.marks[S.active]||{};const prods=prodsFor(S.active);const rows=[];const bys={};const soldIds={};
+  for(const k in m){const o=orderOf(k);if(!o)continue;const [hid,u]=k.split('|');const h=H[hid];const mk=o.m;
+    o.items.forEach(it=>soldIds[it.p.id]=1);if(mk.dBy)bys[mk.dBy]=1;
+    const state=(!h||h.x)?'hidden':mk.delivered?'done':mk.how==='pickup'?'pickup':'todo';
+    rows.push({k,hid,u,o,mk,state,a:h?(addrOf(h)||'House with no number'):'Removed house'})}
+  const itemOpts=prods.filter(p=>soldIds[p.id]);
+  const qOf=r=>DCF.item?((r.o.items.find(it=>it.p.id===DCF.item)||{}).q||0):r.o.items.reduce((a,it)=>a+it.q,0);
+  const inItem=rows.filter(r=>!DCF.item||qOf(r));
+  const sum={todo:0,pickup:0,done:0,hidden:0};inItem.forEach(r=>sum[r.state]+=qOf(r));
+  let list=inItem.filter(r=>DCF.status==='all'||r.state===DCF.status);
+  if(DCF.by)list=list.filter(r=>(r.mk.dBy||'')===DCF.by);
+  if(DCF.how)list=list.filter(r=>DCF.how==='none'?(r.mk.delivered&&!r.mk.how):r.mk.how===DCF.how);
+  if(DCF.photo)list=list.filter(r=>DCF.photo==='yes'?!!r.mk.photo:!r.mk.photo);
+  list.sort((a,b)=>(b.mk.dAt||0)-(a.mk.dAt||0)||a.a.localeCompare(b.a,undefined,{numeric:true}));
+  const howTxt=h=>h==='door'?'left at door':h==='person'?'handed to someone':h==='pickup'?'picked up':'how not picked';
+  const t=ms=>new Date(ms).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'});
+  const chip=(key,val,label)=>'<button type="button" class="chip" data-dcf="'+key+'" data-v="'+esc(val)+'" aria-pressed="'+(DCF[key]===val)+'">'+label+'</button>';
+  const prodOf=id=>prods.find(p=>p.id===id)||{label:id,id};
+  const itemName=DCF.item?prodOf(DCF.item).label:'All items';
+  const showDoneFilters=DCF.status==='done'||DCF.status==='all';
+  const body='<div class="sh-head"><div class="sh-title"><h2>Delivery check</h2><p>'+esc(itemName)+'</p></div>'+X+'</div><div class="sh-body">'+
+    '<select id="dcItem" aria-label="Item"><option value="">All items</option>'+itemOpts.map(p=>'<option value="'+esc(p.id)+'"'+(DCF.item===p.id?' selected':'')+'>'+esc(p.label)+'</option>').join('')+'</select>'+
+    '<div class="dcsum"><span>To deliver <b>'+sum.todo+'</b></span><span>Pickups <b>'+sum.pickup+'</b></span><span>Delivered <b>'+sum.done+'</b></span>'+(sum.hidden?'<span>Hidden <b>'+sum.hidden+'</b></span>':'')+'</div>'+
+    (DCF.item?'<p class="hint" style="margin:0">'+(sum.todo+sum.pickup)+' should still be in hand. If you have more, one of the delivered ones probably didn\'t get it.</p>':'')+
+    '<div class="chips dcchips">'+chip('status','all','All')+chip('status','todo','To deliver')+chip('status','pickup','Pickups')+chip('status','done','Delivered')+(sum.hidden?chip('status','hidden','Hidden'):'')+'</div>'+
+    (showDoneFilters?'<div class="chips dcchips">'+chip('by','','Anyone')+Object.keys(bys).sort().map(b=>chip('by',b,esc(b))).join('')+'</div>'+
+      '<div class="chips dcchips">'+chip('how','','Any way')+chip('how','door','Left at door')+chip('how','person','Handed')+chip('how','none','How not picked')+'</div>'+
+      '<div class="chips dcchips">'+chip('photo','','Photo or not')+chip('photo','yes','Has photo')+chip('photo','no','No photo')+'</div>':'')+
+    '<div class="list cblist dclist">'+(list.length?list.map(r=>{const q=qOf(r);const bits=[];
+      if(r.mk.delivered)bits.push('Delivered'+(r.mk.dBy?' by '+esc(r.mk.dBy):'')+(r.mk.dAt?' '+t(r.mk.dAt):'')+' · '+howTxt(r.mk.how)+(r.mk.photo?' · 📷':''));
+      else bits.push(r.state==='pickup'?'Will pick up':r.state==='hidden'?'On a hidden house':'Not delivered yet');
+      if(!r.mk.paid&&r.o.due)bits.push('owes '+money(r.o.due));
+      return '<button type="button" data-cb="'+esc(r.hid)+'"><b>'+q+' '+(DCF.item?esc(pcode(prodOf(DCF.item))):'items')+'</b><span><strong>'+esc(r.a)+(r.u?' unit '+esc(r.u):'')+'</strong>'+(r.mk.delivered&&!r.mk.how?' <em class="dcflag">check</em>':'')+'<br><small>'+bits.join(' · ')+'</small>'+(DCF.item?'':'<br><small>'+r.o.items.map(it=>it.q+' '+esc(pcode(it.p))).join(', ')+'</small>')+'</span></button>'}).join(''):'<p class="hint" style="padding:12px">Nothing matches these filters.</p>')+'</div>'+
+    '<p class="hint">Tap a house to open it. If one was marked delivered by mistake, tap Delivered ✓ on its card to undo it.</p></div>';
+  openSheet(body);
+  sheet.querySelector('#dcItem').addEventListener('change',e=>{DCF.item=e.target.value;openDeliveryCheck()});
+  sheet.querySelectorAll('[data-dcf]').forEach(b=>b.addEventListener('click',()=>{DCF[b.getAttribute('data-dcf')]=b.getAttribute('data-v');openDeliveryCheck()}));
+  sheet.querySelectorAll('[data-cb]').forEach(b=>b.addEventListener('click',()=>{closeSheet();goToHouse(b.getAttribute('data-cb'))}));
+}
 function openPickups(){
   sheetKind='pickups';const m=S.marks[S.active]||{};const rows=[];
   for(const k in m){const hid=k.split('|')[0];if(!H[hid]||m[k].delivered||m[k].how!=='pickup')continue;const o=orderOf(k);if(!o)continue;
