@@ -106,7 +106,9 @@ Leave a business card at every house that isn't home. The card has our phone num
 
 ## Card and PayPal payments on the order page
 
-* Use PayPal Checkout (needs a free PayPal business account): customers can pay with PayPal or any credit/debit card without a PayPal account. Venmo button too.
-* No forced 3% card fee: PayPal's user agreement forbids surcharges for accepting PayPal (and Venmo). Instead, an optional "Add $X to help cover card fees" checkbox the customer chooses. Double check wording against PayPal's rules before launch.
-* If we ever charge a true card surcharge (e.g. a different processor): Minnesota allows up to 5% with disclosure, card networks generally cap at 3%, and debit cards generally can't be surcharged. Get advice first.
-* Pay on delivery stays as an option (cash, check, Venmo at the door).
+Brea's decision: no business accounts. Use personal links only.
+* Venmo personal (@ausakis) link with the amount and note filled in, as now.
+* PayPal.Me personal link with the amount filled in.
+* Customers who want to use a card can pay through either link with their card; PayPal/Venmo charge the sender the card fee themselves, so we never add a surcharge.
+* Pay on delivery stays (cash, check, Venmo at the door).
+* Known tradeoffs: personal accounts aren't meant for selling, so PayPal/Venmo could limit the account if it sees many sales from strangers; customers get no purchase protection on friends payments. Keep amounts small and the note clear ("Cub Scout wreath fundraiser").
