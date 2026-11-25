@@ -40,3 +40,11 @@ Brea's account can see every family's map.
 * The overlay updates live: houses other families mark while selling or delivering show up within seconds.
 * Live location stays inside each family. Phones in the same family see each other, like Brea and Brandon now. No pack leader accounts, and no admin view of other families' locations.
 * The overlay shows every status other families mark (Not home, No, Come back, sold, and so on), with the time. Brea can still knock and mark her own status on the same house; her marks are separate from theirs. Open question: whether a house a family already sold to should look different, to avoid a second pitch to the same customer.
+
+## Ready to go setup for new families
+
+New accounts start fully set up so nobody has to configure anything:
+* Statuses: Yes bought, Donation, No, Not home, Come back, Took my number, with the same colors as Brea's map.
+* Products and prices: copied from Brea's current list (wreaths, garlands, etc.), updated each season.
+* Current season already created and active.
+* Recommended: the core statuses are locked so the overlay reads the same across every family. Families can add their own extra statuses and adjust prices if their pack differs.
