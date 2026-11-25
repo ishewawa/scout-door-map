@@ -110,7 +110,7 @@ button{cursor:pointer}
 .dl .ln b{font-weight:800}
 .dl .u{color:#555;font-weight:700;margin-right:3px}
 .dl .due{color:#c92a2a;font-weight:800}
-.dl.done{border-color:#adb5bd;opacity:.6}
+.dl.done{border-color:#adb5bd;opacity:.3}
 .dl:not(.done){border-color:#2f9e44;border-width:3px}
 .dl.owe{border-color:#e03131;border-width:3px;background:#fff0f0}.dl.done.owe{opacity:.85}
 .dl.done .a::after{content:" \2713";color:#2f9e44}
@@ -678,7 +678,7 @@ function delStyle(list,sel){
   if(!list.length)return{color:cssv('--outline'),weight:sel?3.5:1,opacity:.35,fillColor:cssv('--box'),fillOpacity:.06};
   // amber = to deliver, purple = they will pick up, red edge = still owes money, blue = item not in the truck
   const owes=list.some(x=>!x.o.m.paid&&x.o.due>0);
-  if(list.every(x=>x.o.m.delivered))return{color:sel?cssv('--accent'):(owes?'#e03131':'#868e96'),weight:sel?3.5:(owes?3:1.5),opacity:.9,fillColor:'#adb5bd',fillOpacity:.45};
+  if(list.every(x=>x.o.m.delivered))return{color:sel?cssv('--accent'):(owes?'#e03131':'#868e96'),weight:sel?3.5:(owes?3:1),opacity:sel?.9:(owes?.8:.3),fillColor:'#adb5bd',fillOpacity:owes?.3:.12};
   const pk=list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');
   const blue=isBlue(list);const fade=blue&&(PREVIEW||ROUTE)?.3:1;
   if(pk)return{color:sel?cssv('--accent'):(owes?'#e03131':blue?'#1971c2':'#2f9e44'),weight:sel?3.5:(owes?4:2.5),opacity:1,fillColor:'#9775fa',fillOpacity:.85};
@@ -820,7 +820,7 @@ function drawDeliveryDots(){
   if(!S.deliver||map.getZoom()>=16)return;
   const b=map.getBounds().pad(.3);
   for(const hid in H){const h=H[hid];if(!h||h.x||!h.c||!b.contains(h.c))continue;const list=houseOrders(hid);if(!list.length)continue;
-    const done=list.every(x=>x.o.m.delivered),owes=list.some(x=>!x.o.m.paid&&x.o.due>0),pk=!done&&list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');
+    const done=list.every(x=>x.o.m.delivered),owes=list.some(x=>!x.o.m.paid&&x.o.due>0);if(done&&!owes)continue;const pk=!done&&list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');
     const blue=!done&&isBlue(list),fade=blue&&(PREVIEW||ROUTE);
     const fill=done?'#adb5bd':pk?'#9775fa':'#ffb300',edge=owes?'#e03131':done?'#868e96':blue?'#1971c2':'#2f9e44';
     L.circleMarker(h.c,{radius:done?4:6,color:edge,weight:2.5,fillColor:fill,fillOpacity:fade?.25:.95,opacity:fade?.3:1,renderer}).on('click',e=>{L.DomEvent.stop(e);selected=hid;openDelivery(hid)}).addTo(dotLayer)}}
@@ -1029,7 +1029,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125022750';
+const BUILD='20261125022932';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD)$('#updPill').hidden=false}catch(e){}}
 setTimeout(checkUpdate,2000);setInterval(()=>{if(document.visibilityState==='visible')checkUpdate()},60000);
