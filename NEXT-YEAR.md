@@ -69,3 +69,17 @@ Kids in gymnastics, sports teams, schools and churches sell wreaths door to door
 Seen in 2026: a house already had another scout's wreath on the porch when we delivered ours.
 * If the other seller uses the app, Brea's card for that house says "Also bought from the Smith Family" and whether theirs is delivered yet, so a wreath already on the porch isn't a surprise.
 * When selling, the overlay shows houses that already bought from someone else this season, so Brea knows before knocking.
+
+## Rollout plan
+
+1. Our pack first. Family accounts ready before fall sales. Demo at a pack meeting. Track families, houses, sales, double deliveries.
+2. Word of mouth: den leaders, nearby packs, gymnastics and sports families. One page "how to start" with a QR code.
+3. Wreath supplier, once we have numbers. Offer a free mention or logo/link only. No data access, no quick signatures; get any agreement reviewed.
+* Cost: Firebase free tier won't cover hundreds or thousands of live syncing families plus photos. Reduce syncing when idle; plan for a small fee or sponsorship.
+
+## Installing on any phone (iPhone too)
+
+* Install helper inside the app: Android gets a one tap Install button; iPhone gets a short picture guide (Safari, Share button, Add to Home Screen).
+* Works in the browser without installing, so nobody is blocked.
+* Test everything on a real iPhone: location, camera, photos, Venmo link, navigation (opens Apple or Google Maps). Flash/torch likely doesn't work in iPhone Safari; fall back to brightening the photo.
+* Later, if needed: real App Store and Google Play listings by wrapping the same app (Apple developer account about $99 a year, Google about $25 once, plus review).
