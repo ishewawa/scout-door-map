@@ -10,7 +10,9 @@ self.addEventListener('fetch',e=>{
   const u=new URL(r.url);
   if(r.mode==='navigate'){
     // always ask the web for the newest page, never a copy saved earlier
-    e.respondWith(fetch(new Request(r.url,{cache:'no-store',credentials:'same-origin'})).then(res=>{const copy=res.clone();caches.open(CACHE).then(c=>c.put('./index.html',copy));return res}).catch(()=>caches.match('./index.html')));
+    // only the app itself is kept for offline use; other pages (like the owner view) are never saved as the app
+    const isApp=/\/(index\.html)?$/.test(u.pathname);
+    e.respondWith(fetch(new Request(r.url,{cache:'no-store',credentials:'same-origin'})).then(res=>{if(isApp&&res.ok){const copy=res.clone();caches.open(CACHE).then(c=>c.put('./index.html',copy))}return res}).catch(()=>isApp?caches.match('./index.html'):caches.match(r)));
     return;
   }
   if(u.origin===location.origin&&u.search)return; // version checks go straight to the web

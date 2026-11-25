@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Owner view · Door Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+:root{--bg:#f3f5f7;--surface:#fff;--ink:#1d2a3a;--muted:#5d6b7c;--line:#d8dee6;--accent:#e2a400;--navy:#1d2a3a;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;--body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#0f151d;--surface:#18212c;--ink:#e7edf4;--muted:#9aa8b8;--line:#2b3746;--accent:#f0b81c;--navy:#0b1118}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--body)}
+#top{position:fixed;left:0;right:0;top:0;z-index:1000;background:var(--navy);color:#fff;padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;border-radius:0 0 18px 18px;box-shadow:0 4px 18px rgba(0,0,0,.25)}
+#top .row{display:flex;align-items:center;gap:10px}
+#top h1{font-family:var(--display);font-size:24px;margin:0;font-weight:700;letter-spacing:.2px}
+#top a{color:#fff;text-decoration:none;font-weight:600;font-size:14px;background:rgba(255,255,255,.12);padding:6px 11px;border-radius:999px}
+#top .sp{flex:1}
+.tag{display:inline-block;background:#ae3ec9;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;vertical-align:middle;margin-left:6px}
+.stats{display:flex;gap:18px;margin-top:8px;font-variant-numeric:tabular-nums}
+.stats div{display:flex;flex-direction:column}
+.stats span{font-size:11px;color:#b9c4d0}
+.stats b{font-family:var(--display);font-size:22px;font-weight:700}
+#map{position:fixed;inset:0}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:var(--surface);border-radius:20px 20px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.2);
+  max-height:58vh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom);transition:transform .2s}
+#sheet.min{transform:translateY(calc(100% - 72px - env(safe-area-inset-bottom)))}
+#grab{padding:8px 0 2px;display:flex;justify-content:center;cursor:pointer}
+#grab i{width:44px;height:5px;border-radius:3px;background:var(--line)}
+.sh-head{display:flex;align-items:center;gap:10px;padding:4px 16px 8px}
+.sh-head h2{font-family:var(--display);font-size:22px;margin:0;flex:1}
+.switch{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;cursor:pointer;user-select:none}
+.switch input{display:none}
+.switch .tr{width:44px;height:26px;border-radius:13px;background:var(--line);position:relative;transition:background .15s}
+.switch .tr:after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .15s}
+.switch input:checked+.tr{background:#ae3ec9}
+.switch input:checked+.tr:after{left:21px}
+.note{margin:0 16px 8px;font-size:12.5px;color:var(--muted);line-height:1.35}
+.note b{color:var(--ink)}
+.list{overflow:auto;padding:0 10px 14px}
+.fam{display:flex;align-items:center;gap:10px;padding:10px 8px;border-top:1px solid var(--line)}
+.fam:first-child{border-top:0}
+.fam .who{flex:1;min-width:0}
+.fam .nm{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fam .gp{font-size:12px;color:var(--muted)}
+.fam .nums{font-size:12.5px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+.fam .nums b{color:var(--ink)}
+.fam input[type=checkbox]{width:20px;height:20px;accent-color:#ae3ec9;flex:none}
+.hl{border:0;background:var(--bg);color:var(--ink);font:600 12.5px var(--body);padding:7px 10px;border-radius:999px;cursor:pointer;flex:none}
+.hl.on{background:var(--hc,#ae3ec9);color:#fff}
+.me .nm:before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--accent);margin-right:6px;vertical-align:1px}
+.total{margin:6px 8px 0;padding:10px 12px;background:var(--bg);border-radius:12px;font-size:13px;line-height:1.5}
+.total b{font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 16px 8px;font-size:12px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:16px;height:12px;border-radius:3px;display:block}
+.leaflet-popup-content{margin:10px 12px;font:14px/1.4 var(--body)}
+.pp b{font-size:15px}
+.pp .s{display:inline-block;padding:1px 8px;border-radius:999px;color:#fff;font-weight:700;font-size:12px;margin:3px 0}
+.pp .m{color:#5d6b7c;font-size:12.5px}
+.pp hr{border:0;border-top:1px solid #e3e8ee;margin:7px 0}
+.olap{width:16px;height:16px;background:#ae3ec9;color:#fff;border-radius:999px;font:700 10px/16px var(--body);text-align:center;box-shadow:0 0 0 1.5px #fff}
+#empty{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:1500;background:var(--bg);padding:30px;text-align:center;line-height:1.5}
+#empty a{color:var(--ink);font-weight:700}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="top">
+  <div class="row"><h1>Owner view <span class="tag">Preview</span></h1><span class="sp"></span><a href="./">Back to Door Map</a></div>
+  <div class="stats" id="topStats"></div>
+</div>
+<div id="sheet" class="min">
+  <div id="grab"><i></i></div>
+  <div class="sh-head"><h2 id="shTitle">All sellers</h2>
+    <label class="switch"><input type="checkbox" id="ovOn" checked><span class="tr"></span>Show others</label></div>
+  <p class="note"><b>These families are made up for this preview.</b> They live only on this screen and are never saved. Your own map is read from this phone and nothing on it is changed.</p>
+  <div class="legend"><span><i style="background:#2f9e44;opacity:.8"></i>Your houses</span><span><i style="border:2px dashed #2f9e44;background:rgba(47,158,68,.15)"></i>Other sellers</span><span><i class="olap" style="border-radius:50%">2</i>Marked by more than one seller</span></div>
+  <div class="list" id="list"></div>
+</div>
+<div id="empty"><div>Your map isn't on this phone yet.<br>Open <a href="./">Door Map</a> on this phone first, then come back here.</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function(){
+// READ ONLY. This page never writes to the app's saved data or to your account.
+function read(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+const S=read('sdm.state.v1',null), H=read('sdm.houses.v1',{});
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>'$'+Math.round(n).toLocaleString();
+const hids=Object.keys(H).filter(h=>H[h]&&H[h].c&&H[h].p&&!H[h].x&&!H[h].temp);
+if(!S||!hids.length){document.getElementById('empty').style.display='flex';return}
+
+const DEFAULT_PRODUCTS=[{id:'w25',label:'Balsam Fir Wreath (25")',price:30},{id:'w36',label:'Balsam Fir Wreath (36")',price:50},{id:'wvoy',label:'Wreath Voyageur',price:40},
+  {id:'swag',label:'Door Swag',price:30},{id:'garl',label:'Garland 25 ft',price:45},{id:'cent',label:'Centerpiece',price:40}];
+const STATUSES=(S.statuses&&S.statuses.length?S.statuses:[{id:'yes',label:'Yes, bought',color:'#2f9e44'},{id:'no',label:'No',color:'#e03131'},{id:'nothome',label:'Not home',color:'#868e96'},{id:'comeback',label:'Come back',color:'#f59f00'},{id:'tooknum',label:'Took my number',color:'#1c7ed6'}]);
+const stById=id=>STATUSES.find(s=>s.id===id);
+const SID=S.active||(S.seasons&&S.seasons[0]&&S.seasons[0].id);
+const season=(S.seasons||[]).find(s=>s.id===SID);
+const PRODUCTS=(season&&season.products)||DEFAULT_PRODUCTS;
+const MARKS=(S.marks&&S.marks[SID])||{};
+const total=items=>{let t=0;if(items)for(const p of PRODUCTS)t+=(+items[p.id]||0)*(+p.price||0);return t};
+const itemsText=items=>PRODUCTS.filter(p=>+((items||{})[p.id])).map(p=>items[p.id]+' '+p.label).join(', ');
+
+// your houses: one summary per house (townhome units roll up)
+const MINE={};
+for(const k in MARKS){const hid=k.split('|')[0];if(!H[hid])continue;const m=MARKS[k];
+  const r=MINE[hid]||(MINE[hid]={st:null,sold:0,items:{},delivered:true,any:false,paid:true});
+  if(m.st&&(!r.st||m.st==='yes'))r.st=m.st;
+  const t=m.items?total(m.items):(+m.sale||0);if(t||+m.don){r.sold+=t+(+m.don||0);r.any=true;r.delivered=r.delivered&&!!m.delivered;r.paid=r.paid&&!!m.paid;
+    if(m.items)for(const p in m.items)r.items[p]=(r.items[p]||0)+(+m.items[p]||0)}}
+
+// sample families, made up from a fixed seed so they look the same every time
+let seed=20261125;const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
+const pick=a=>a[Math.floor(rnd()*a.length)];
+const FAMS=[
+  {id:'f1',name:'The Carlson Family',group:'Cub Scout Pack 4501',color:'#e8590c'},
+  {id:'f2',name:'The Nguyen Family',group:'Woodbury Gymnastics',color:'#0ca678'},
+  {id:'f3',name:'The Okafor Family',group:'East Ridge Hockey',color:'#1971c2'},
+  {id:'f4',name:'The Lindqvist Family',group:'Cub Scout Pack 3312',color:'#c2255c'},
+  {id:'f5',name:'The Ramos Family',group:'St. Ambrose Youth Group',color:'#7048e8'}];
+const centerOf=hid=>H[hid].c;
+const d2=(a,b)=>{const dy=(a[0]-b[0])*111000,dx=(a[1]-b[1])*111000*Math.cos(a[0]*Math.PI/180);return dx*dx+dy*dy};
+const OTHERS={}; // hid -> [{fam, st, items, delivered, paid, t}]
+const STW=[['yes',.3],['nothome',.3],['no',.24],['comeback',.1],['tooknum',.06]];
+const pickSt=()=>{let r=rnd(),a=0;for(const [id,w] of STW){a+=w;if(r<a)return stById(id)?id:STATUSES[0].id}return 'nothome'};
+const per=Math.max(8,Math.min(60,Math.round(hids.length/4)));
+FAMS.forEach(f=>{const anchor=centerOf(pick(hids));
+  const near=hids.slice().sort((a,b)=>d2(centerOf(a),anchor)-d2(centerOf(b),anchor)).slice(0,Math.round(per*1.6));
+  near.forEach(hid=>{if(rnd()>.5)return;const st=pickSt();const it={};
+    if(st==='yes'){const n=1+(rnd()<.35?1:0);for(let i=0;i<n;i++){const p=pick(PRODUCTS.slice(0,5));it[p.id]=(it[p.id]||0)+1+(rnd()<.2?1:0)}}
+    const hr=15+Math.floor(rnd()*5),mn=Math.floor(rnd()*60);
+    (OTHERS[hid]=OTHERS[hid]||[]).push({fam:f,st,items:it,delivered:st==='yes'&&rnd()<.5,paid:st==='yes'&&rnd()<.7,t:(hr>12?hr-12:hr)+':'+String(mn).padStart(2,'0')+' PM'})})});
+
+// map
+const map=L.map('map',{zoomControl:false,preferCanvas:true,attributionControl:true});
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:21,maxNativeZoom:19,attribution:'Map: Esri, HERE, Garmin, OpenStreetMap contributors'}).addTo(map);
+const renderer=L.canvas({padding:.5});
+const mineLayer=L.layerGroup().addTo(map),otherLayer=L.layerGroup().addTo(map),olapLayer=L.layerGroup().addTo(map);
+const shown=new Set(FAMS.map(f=>f.id));let hiFam=null;
+const ovOn=document.getElementById('ovOn');
+
+function myPopup(hid){const h=H[hid],r=MINE[hid],st=r&&stById(r.st);const oth=(OTHERS[hid]||[]).filter(o=>shown.has(o.fam.id));
+  let s='<div class="pp"><b>'+esc((h.n||'')+' '+(h.s||''))+'</b><br><span class="m">Your map</span><br>';
+  if(st)s+='<span class="s" style="background:'+st.color+'">'+esc(st.label)+'</span><br>';else s+='<span class="m">Not marked by you</span><br>';
+  if(r&&r.any)s+=esc(itemsText(r.items))+'<br><span class="m">'+money(r.sold)+(r.paid?' · paid':' · not paid')+(r.delivered?' · delivered':'')+'</span>';
+  if(ovOn.checked&&oth.length)s+='<hr>'+oth.map(otherLine).join('<hr>');
+  return s+'</div>'}
+function otherLine(o){const st=stById(o.st);return '<b style="font-size:14px">'+esc(o.fam.name)+'</b><br><span class="m">'+esc(o.fam.group)+' · '+o.t+'</span><br><span class="s" style="background:'+(st?st.color:'#868e96')+'">'+esc(st?st.label:o.st)+'</span>'+
+  (o.st==='yes'?'<br>'+esc(itemsText(o.items))+'<br><span class="m">'+money(total(o.items))+(o.paid?' · paid':' · not paid')+(o.delivered?' · delivered':'')+'</span>':'')}
+
+function draw(){mineLayer.clearLayers();otherLayer.clearLayers();olapLayer.clearLayers();
+  // your houses, drawn like your app
+  hids.forEach(hid=>{const r=MINE[hid],st=r&&stById(r.st);
+    const done=r&&r.any&&r.delivered;
+    const style=st?{color:done?'#868e96':st.color,weight:1.6,fillColor:done?'#adb5bd':st.color,fillOpacity:done?.25:.55,opacity:.95}:{color:'#94a3b8',weight:1,fillColor:'#ffffff',fillOpacity:.35,opacity:.8};
+    L.polygon(H[hid].p,Object.assign({renderer},style)).on('click',e=>L.popup().setLatLng(e.latlng).setContent(myPopup(hid)).openOn(map)).addTo(mineLayer)});
+  if(!ovOn.checked)return;
+  // other sellers: faded fill, dashed outline in the status color, slightly inset so both show on shared houses
+  const z=map.getZoom();
+  for(const hid in OTHERS){const list=OTHERS[hid].filter(o=>shown.has(o.fam.id));if(!list.length)continue;
+    const o=list[list.length-1],st=stById(o.st),col=st?st.color:'#868e96',hi=hiFam&&list.some(x=>x.fam.id===hiFam);
+    const dim=hiFam&&!hi;
+    const ring=insetRing(H[hid].p,MINE[hid]?.18:0);
+    L.polygon(ring,{renderer,color:hi?FAMS.find(f=>f.id===hiFam).color:col,weight:hi?3.5:2.2,dashArray:hi?null:'5 4',fillColor:col,fillOpacity:dim?.05:(MINE[hid]?.0:.18),opacity:dim?.25:.95})
+      .on('click',e=>L.popup().setLatLng(e.latlng).setContent(MINE[hid]?myPopup(hid):'<div class="pp">'+list.map(otherLine).join('<hr>')+'</div>').openOn(map)).addTo(otherLayer);
+    const count=list.length+(MINE[hid]&&MINE[hid].st?1:0);
+    if(count>1&&z>=17){const ring=Array.isArray(H[hid].p[0][0])?H[hid].p[0]:H[hid].p;const ne=[Math.max(...ring.map(q=>q[0])),Math.max(...ring.map(q=>q[1]))];
+      L.marker(ne,{icon:L.divIcon({className:'',html:'<div class="olap">'+count+'</div>',iconSize:[16,16],iconAnchor:[8,8]}),interactive:false}).addTo(olapLayer)}}
+}
+// shrink a house outline toward its middle so a dashed line can sit inside your own box
+function insetRing(p,f){if(!f)return p;const ring=Array.isArray(p[0][0])?p[0]:p;let cy=0,cx=0;ring.forEach(q=>{cy+=q[0];cx+=q[1]});cy/=ring.length;cx/=ring.length;
+  return ring.map(q=>[q[0]+(cy-q[0])*f,q[1]+(cx-q[1])*f])}
+
+// numbers
+function famStats(fid){let knocked=0,sold=0,amt=0,del=0;for(const hid in OTHERS)OTHERS[hid].forEach(o=>{if(o.fam.id!==fid)return;knocked++;if(o.st==='yes'){sold++;amt+=total(o.items);if(o.delivered)del++}});return{knocked,sold,amt,del}}
+function myStats(){let knocked=0,sold=0,amt=0,del=0;for(const hid in MINE){const r=MINE[hid];if(r.st)knocked++;if(r.any){sold++;amt+=r.sold;if(r.delivered)del++}}return{knocked,sold,amt,del}}
+function renderList(){const me=myStats();const rows=[];
+  rows.push('<div class="fam me"><div class="who"><div class="nm">You</div><div class="gp">Your own map</div><div class="nums"><b>'+me.knocked+'</b> knocked · <b>'+me.sold+'</b> sold · <b>'+money(me.amt)+'</b> · <b>'+me.del+'</b> delivered</div></div></div>');
+  let all={knocked:me.knocked,sold:me.sold,amt:me.amt,del:me.del};
+  FAMS.forEach(f=>{const s=famStats(f.id);all.knocked+=s.knocked;all.sold+=s.sold;all.amt+=s.amt;all.del+=s.del;
+    rows.push('<div class="fam"><input type="checkbox" data-f="'+f.id+'"'+(shown.has(f.id)?' checked':'')+' aria-label="Show '+esc(f.name)+'"><div class="who"><div class="nm">'+esc(f.name)+'</div><div class="gp">'+esc(f.group)+'</div><div class="nums"><b>'+s.knocked+'</b> knocked · <b>'+s.sold+'</b> sold · <b>'+money(s.amt)+'</b> · <b>'+s.del+'</b> delivered</div></div>'+
+      '<button class="hl'+(hiFam===f.id?' on':'')+'" style="--hc:'+f.color+'" data-hl="'+f.id+'">'+(hiFam===f.id?'Highlighted':'Highlight')+'</button></div>')});
+  let olap=0;for(const hid in OTHERS){const n=OTHERS[hid].length+(MINE[hid]&&MINE[hid].st?1:0);if(n>1)olap++}
+  rows.push('<div class="total">Everyone together: <b>'+all.knocked+'</b> houses knocked, <b>'+all.sold+'</b> sold, <b>'+money(all.amt)+'</b>, <b>'+all.del+'</b> delivered.<br><b>'+olap+'</b> houses were marked by more than one seller.</div>');
+  document.getElementById('list').innerHTML=rows.join('');
+  document.getElementById('topStats').innerHTML='<div><span>Sellers</span><b>'+(FAMS.length+1)+'</b></div><div><span>Houses sold</span><b>'+all.sold+'</b></div><div><span>All sales</span><b>'+money(all.amt)+'</b></div>'}
+
+document.getElementById('list').addEventListener('click',e=>{const cb=e.target.closest('[data-f]'),hl=e.target.closest('[data-hl]');
+  if(cb){const id=cb.getAttribute('data-f');if(cb.checked)shown.add(id);else{shown.delete(id);if(hiFam===id)hiFam=null}draw();renderList();return}
+  if(hl){const id=hl.getAttribute('data-hl');hiFam=hiFam===id?null:id;if(hiFam){shown.add(id);if(!ovOn.checked)ovOn.checked=true;
+    const pts=[];for(const hid in OTHERS)if(OTHERS[hid].some(o=>o.fam.id===id))pts.push(H[hid].c);if(pts.length){document.getElementById('sheet').classList.add('min');map.fitBounds(pts,{paddingTopLeft:[30,150],paddingBottomRight:[30,100],maxZoom:18})}}
+    draw();renderList()}});
+ovOn.addEventListener('change',()=>{draw();renderList()});
+document.getElementById('grab').addEventListener('click',()=>document.getElementById('sheet').classList.toggle('min'));
+document.getElementById('shTitle').addEventListener('click',()=>document.getElementById('sheet').classList.toggle('min'));
+map.on('click',()=>document.getElementById('sheet').classList.add('min'));
+map.on('zoomend',draw);
+
+// start on your houses
+const pts=hids.filter(h=>MINE[h]).map(h=>H[h].c);
+map.fitBounds((pts.length?pts:hids.map(h=>H[h].c)),{paddingTopLeft:[20,150],paddingBottomRight:[20,100],maxZoom:17});
+draw();renderList();
+})();
+</script>
+</body>
+</html>
