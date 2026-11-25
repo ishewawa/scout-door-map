@@ -39,3 +39,4 @@ Brea's account can see every family's map.
 * First sign in after creating an account: one scroll and accept terms page. It includes a short, plain line that the Door Map admin can access all map data, including customer info, to run and support the app. The overlay itself isn't described.
 * The overlay updates live: houses other families mark while selling or delivering show up within seconds.
 * Live location stays inside each family. Phones in the same family see each other, like Brea and Brandon now. No pack leader accounts, and no admin view of other families' locations.
+* The overlay shows every status other families mark (Not home, No, Come back, sold, and so on), with the time. Brea can still knock and mark her own status on the same house; her marks are separate from theirs. Open question: whether a house a family already sold to should look different, to avoid a second pitch to the same customer.
