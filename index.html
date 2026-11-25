@@ -999,7 +999,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125015630';
+const BUILD='20261125015735';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD)$('#updPill').hidden=false}catch(e){}}
 setTimeout(checkUpdate,2000);setInterval(()=>{if(document.visibilityState==='visible')checkUpdate()},60000);
@@ -1437,12 +1437,12 @@ function startTour(){
   window.addEventListener('resize',show);show();
 }
 // Venmo: a QR with the amount and a note already filled in. The customer scans it with their phone camera.
-function venmoUrl(due,note){return 'https://venmo.com/'+encodeURIComponent(S.venmo.replace(/^@/,''))+'?txn=pay&amount='+(Math.round(due*100)/100)+'&note='+encodeURIComponent(note)}
+function venmoUrl(due,note){return 'https://venmo.com/u/'+encodeURIComponent(S.venmo.replace(/^@/,''))+'?txn=pay&amount='+(Math.round(due*100)/100).toFixed(2)+'&note='+encodeURIComponent(note)}
 let qrLib=null;
 function showVenmo(x,hid,after){
   const h=H[hid];const note='Scout wreaths, '+(addrOf(h)||'order')+(x.u?' unit '+x.u:'');const url=venmoUrl(x.o.due,note);
   const bg=document.createElement('div');bg.className='modal-bg';
-  bg.innerHTML='<div class="modal vmodal" role="dialog" aria-label="Venmo QR"><p class="hint">Have them scan with their phone camera</p><div class="amt">'+money(x.o.due)+'</div><div class="vqr" id="vqr"><span class="hint" style="color:#555">Loading QR...</span></div><p style="margin:0"><b>@'+esc(S.venmo.replace(/^@/,''))+'</b></p><p class="hint">Note on their payment: '+esc(note)+'</p>'+
+  bg.innerHTML='<div class="modal vmodal" role="dialog" aria-label="Venmo QR"><p class="hint">Have them scan with their phone camera</p><div class="amt">'+money(x.o.due)+'</div><div class="vqr" id="vqr"><span class="hint" style="color:#555">Loading QR...</span></div><p style="margin:0"><b>@'+esc(S.venmo.replace(/^@/,''))+'</b></p><p class="hint" style="margin:0">Scan not working? In Venmo, tap Pay, search <b>@'+esc(S.venmo.replace(/^@/,''))+'</b> and send '+money(x.o.due)+'.</p><p class="hint">Note on their payment: '+esc(note)+'</p>'+
     '<button class="btn primary" data-v="paid">I see it in my Venmo: mark Paid</button><div class="row" style="justify-content:center"><button class="btn small" data-v="text">Text them the link</button><button class="btn small" data-v="close">Close</button></div></div>';
   document.body.appendChild(bg);
   const done=()=>{bg.remove();after&&after()};
