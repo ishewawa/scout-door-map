@@ -1035,6 +1035,7 @@ renderScoutSel();
 /* ---------- sheets ---------- */
 const sheet=$('#sheet');
 function openSheet(html,tall){sheet.className='sheet'+(tall?' tall':'');sheet.innerHTML='<div class="grab" aria-hidden="true"></div>'+html;sheet.hidden=false}
+function isSheetOpen(){return !sheet.hidden}
 function closeSheet(){sheet.hidden=true;sheet.innerHTML='';if(selected){const s=selected;selected=null;if(H[s]&&H[s].temp)dropTemp(s);else restyle(s)}sheetKind=null;setTabs('map')}
 function dropTemp(id){removeHalo(id);if(polys[id]){houseLayer.removeLayer(polys[id]);delete polys[id]}delete H[id];drawLabels()}
 function keepHouse(hid){if(H[hid]&&H[hid].temp){delete H[hid].temp;saveH()}}
@@ -1550,7 +1551,9 @@ function pickPhoto(useCamera,onFile){
   setTimeout(()=>{document.removeEventListener('visibilitychange',back);window.removeEventListener('focus',back)},10*60000);
   try{sessionStorage.setItem('sdm.photoPending','1')}catch(e){}
   inp.click()}
+let openDeliveryHid=null;
 function openDelivery(hid){
+  openDeliveryHid=hid;
   sheetKind='house';setTabs('map');const h=H[hid];const list=houseOrders(hid);
   if(!list.length){openSheet('<div class="sh-head"><div class="sh-title"><h2>'+esc(addrOf(h)||'House')+'</h2><p>No order this season</p></div>'+X+'</div><div class="sh-body"><button class="btn" id="dFull">Open full details</button></div>');
     sheet.querySelector('#dFull').addEventListener('click',()=>openHouse(hid));return}
@@ -2009,6 +2012,7 @@ async function autoCheck(){
   clearTimeout(to);checking=false;
 }
 setInterval(autoCheck,15000);
+setInterval(()=>{if(S.deliver)autoCheck()},5000);
 // coming back to the app: restart the live connection (phones often let it go stale while asleep) and check right away
 let hiddenAt=0;
 document.addEventListener('visibilitychange',()=>{
@@ -2053,8 +2057,9 @@ function queueRemoteRender(res){res.changedH.forEach(h=>remotePending.add(h));if
   clearTimeout(remoteT);remoteT=setTimeout(()=>{
     save(KS,S);const out={};for(const id in H)if(!H[id].temp)out[id]=H[id];save(KH,out);
     if(remoteCfg){remoteCfg=false;remotePending.clear();rerenderAll();return}
+    const reopen=S.deliver&&sheetKind==='house'&&openDeliveryHid&&remotePending.has(openDeliveryHid)&&isSheetOpen()?openDeliveryHid:null;
     for(const hid of remotePending){if(H[hid]){if(polys[hid])redrawHouse(hid);else drawHouses()}else{removeHalo(hid);if(polys[hid]){houseLayer.removeLayer(polys[hid]);delete polys[hid]}}}
-    remotePending.clear();renderTally();drawLabels();
+    remotePending.clear();renderTally();drawLabels();if(reopen&&H[reopen])openDelivery(reopen);
   },150);
 }
 async function startSync(user){
