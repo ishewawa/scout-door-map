@@ -999,7 +999,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125015735';
+const BUILD='20261125021006';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD)$('#updPill').hidden=false}catch(e){}}
 setTimeout(checkUpdate,2000);setInterval(()=>{if(document.visibilityState==='visible')checkUpdate()},60000);
@@ -1553,6 +1553,13 @@ function pickPhoto(useCamera,onFile){
   setTimeout(()=>{document.removeEventListener('visibilitychange',back);window.removeEventListener('focus',back)},10*60000);
   try{sessionStorage.setItem('sdm.photoPending','1')}catch(e){}
   inp.click()}
+// asked when Mark delivered is tapped without saying how
+function askHow(){return new Promise(res=>{const bg=document.createElement('div');bg.className='modal-bg';
+  bg.innerHTML='<div class="modal" role="dialog" aria-label="How was it delivered?"><p><b>How was it delivered?</b></p>'+
+    '<button class="big-btn" data-h="door" style="width:100%">🚪 Left at door (take photo)</button>'+
+    '<button class="big-btn" data-h="person" style="width:100%;margin-top:8px">🤝 Handed to someone</button>'+
+    '<button class="btn" data-h="" style="width:100%;margin-top:8px">Cancel</button></div>';
+  document.body.appendChild(bg);bg.addEventListener('click',e=>{const b=e.target.closest('[data-h]');if(!b&&e.target!==bg)return;bg.remove();res(b?b.getAttribute('data-h')||null:null)})})}
 let openDeliveryHid=null;
 function openDelivery(hid){
   openDeliveryHid=hid;
@@ -1573,23 +1580,32 @@ function openDelivery(hid){
   openSheet('<div class="sh-head"><div class="sh-title"><h2>'+esc(addrOf(h)||'House')+'</h2><p>Delivery for '+esc((seasonById(S.active)||{}).name||'')+'</p></div>'+X+'</div>'+
     '<div class="sh-body">'+html+'<button class="btn" id="dFull">Open full details</button></div>',list.length>1);
   sheet.querySelector('#dFull').addEventListener('click',()=>openHouse(hid));
-  sheet.querySelectorAll('[data-dlv]').forEach(b=>b.addEventListener('click',()=>{const x=list[+b.getAttribute('data-dlv')];deliverKey(x.key,hid,!x.o.m.delivered,b)}));
+  sheet.querySelectorAll('[data-dlv]').forEach(b=>b.addEventListener('click',async()=>{const i=+b.getAttribute('data-dlv');const x=list[i];
+    if(x.o.m.delivered){deliverKey(x.key,hid,false,b);return}
+    const how=x.o.m.how;
+    if(how==='door')return takePhoto(i,true,'door');
+    if(how==='person'||how==='pickup')return deliverKey(x.key,hid,true,b);
+    const pick=await askHow();if(!pick)return;
+    if(pick==='door')return takePhoto(i,true,'door');
+    setMark(x.key,hid,{how:'person'});deliverKey(x.key,hid,true,b)}));
   const sk=sheet.querySelector('[data-skip]');if(sk)sk.addEventListener('click',()=>{if(!ROUTE)return;ROUTE.hids=ROUTE.hids.filter(x=>x!==hid);saveRoute();closeSheet();restyleAll();
     if(!routeLeft()){const n=ROUTE.name;ROUTE=null;saveRoute();restyleAll();toast(n+' done \ud83c\udf89 Skipped houses go in your next routes')}else toast('Skipped. It will be in your next route.')});
   sheet.querySelectorAll('[data-how]').forEach(b=>b.addEventListener('click',()=>{const i=+b.getAttribute('data-i');const x=list[i];const v=b.getAttribute('data-how');const nv=x.o.m.how===v?null:v;
+    if(v==='door'&&nv){takePhoto(i,true,'door');return} // left at door always needs a photo
     setMark(x.key,hid,{how:nv});
     if(nv&&nv!=='pickup'&&!x.o.m.delivered){deliverKey(x.key,hid,true,null);return}
     if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()}openDelivery(hid)}));
   sheet.querySelectorAll('[data-thumb]').forEach(img=>getPhoto(img.getAttribute('data-thumb')).then(u=>{if(u)img.src=u}));
   sheet.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{const x=list[+b.getAttribute('data-view')];getPhoto(x.key).then(u=>{if(!u)return toast('Photo not loaded yet');const bg=document.createElement('div');bg.className='modal-bg';bg.innerHTML='<div class="modal" style="padding:10px"><img src="'+u+'" alt="Delivery photo" style="width:100%;border-radius:14px;display:block"><p class="hint" style="margin:8px 4px">'+esc(addrOf(H[hid])||'')+(x.o.m.dBy?' \u00b7 by '+esc(x.o.m.dBy):'')+(x.o.m.photo?' \u00b7 '+new Date(x.o.m.photo).toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):'')+(x.o.m.pgeo?'<br>'+geoText(x.o.m.pgeo):'')+'</p><button class="btn" style="width:100%">Close</button></div>';document.body.appendChild(bg);bg.addEventListener('click',e=>{if(e.target===bg||e.target.closest('button'))bg.remove()})})}));
-  const takePhoto=async(i,cam)=>{const x=list[i];const key=x.key;const where=cam?hereNow():Promise.resolve(null);
+  const takePhoto=async(i,cam,forceHow)=>{const x=list[i];const key=x.key;const where=cam?hereNow():Promise.resolve(null);
     const handle=async f=>{toast('Saving photo...');
       try{const url=typeof f==='string'?f:await compressPhoto(f);const g=await Promise.race([where,new Promise(r=>setTimeout(()=>r(null),5000))]);
         const pg=g&&H[hid]?{d:Math.round(metersBetween(g,H[hid].c)),acc:Math.round(g.acc)}:null;
         await savePhoto(key,url,g);setMark(key,hid,{photo:Date.now(),pgeo:pg});
         const cur=mark(S.active,key)||{};
         // a photo means it was left at the door: mark it, then close the house
-        if(!cur.delivered&&cur.how!=='pickup'){if(!cur.how)setMark(key,hid,{how:'door'});const ok=await deliverKey(key,hid,true,null);if(ok){closeSheet();toast('Photo saved, left at door')}}
+        if(forceHow)setMark(key,hid,{how:forceHow});
+        if(!cur.delivered&&cur.how!=='pickup'){if(!cur.how&&!forceHow)setMark(key,hid,{how:'door'});const ok=await deliverKey(key,hid,true,null);if(ok){closeSheet();toast('Photo saved, left at door')}}
         else{if(!cur.how)setMark(key,hid,{how:'door'});if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()}closeSheet();toast('Photo saved')}}
       catch(e){console.warn(e);openDelivery(hid);toast(e&&e.message?e.message:'Could not save the photo')}};
     // camera inside the app first, so the phone never switches away (and never restarts the app)
