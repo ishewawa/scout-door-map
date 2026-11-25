@@ -56,4 +56,4 @@ Kids in gymnastics, sports teams, schools and churches sell wreaths door to door
 * At sign up, ask what kind of group (Scouts, sports team, gymnastics, school, church, other) and the group's name.
 * Neutral wording everywhere: "Seller" instead of "Scout" in the picker, "group" instead of "pack". Scout families can still see scout wording.
 * Consider a name that isn't scout only (Door Map already works).
-* Overlay and master account work the same for every group type.
+* One overlay covers every seller on the app, whatever their group (Brea's decision). No grouping or filtering by organization needed. Each family still gets its own color.
