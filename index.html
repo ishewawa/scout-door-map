@@ -1039,7 +1039,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125031018';
+const BUILD='20261125031248';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD)$('#updPill').hidden=false}catch(e){}}
 setTimeout(checkUpdate,2000);setInterval(()=>{if(document.visibilityState==='visible')checkUpdate()},60000);
@@ -1926,14 +1926,14 @@ const LIVE={};let liveLayer=null;
 function applyLive(data){if(!data)return;const me='p_'+devId();
   for(const k in data){if(!k.startsWith('p_')||k===me)continue;try{LIVE[k]=JSON.parse(data[k])}catch(e){}}drawLive()}
 function agoText(t){const m=Math.round((Date.now()-t)/60000);return m<1?'just now':m===1?'1 min ago':m<60?m+' min ago':Math.round(m/60)+' hr ago'}
-function liveOthers(){return Object.keys(LIVE).map(k=>Object.assign({k},LIVE[k])).filter(p=>!p.off&&p.lat&&Date.now()-p.t<45*60000)}
+function liveOthers(){return Object.keys(LIVE).map(k=>Object.assign({k},LIVE[k])).filter(p=>!p.off&&p.lat&&Date.now()-p.t<4*3600000)}
 function drawLive(){
   if(!liveLayer)liveLayer=L.layerGroup().addTo(map);liveLayer.clearLayers();
   liveOthers().forEach(p=>{const stale=Date.now()-p.t>5*60000;
     L.marker([p.lat,p.lng],{icon:L.divIcon({className:'them-ic',html:'<div class="them'+(stale?' stale':'')+'"><i></i><span>'+esc(p.name||'Other phone')+' · '+agoText(p.t)+'</span></div>',iconSize:[22,22],iconAnchor:[11,11]}),zIndexOffset:9500,interactive:false,keyboard:false}).addTo(liveLayer)});
   try{renderTallyLive()}catch(e){}}
 function renderTallyLive(){const el=document.getElementById('liveChips');if(!el)return;
-  const offs=Object.keys(LIVE).map(k=>Object.assign({k},LIVE[k])).filter(p=>p.off&&Date.now()-p.t<45*60000);
+  const offs=Object.keys(LIVE).map(k=>Object.assign({k},LIVE[k])).filter(p=>p.off&&Date.now()-p.t<4*3600000);
   el.innerHTML=(S.deliver&&watchId===null?'<button type="button" class="tchip them-off" data-shareme="1">📍 Your location is off · tap to share</button>':'')+
     liveOthers().map(p=>'<button type="button" class="tchip them-chip" data-live="'+esc(p.k)+'">👤 '+esc(p.name||'Other phone')+' · '+agoText(p.t)+'</button>').join('')+
     offs.map(p=>'<span class="tchip them-off">👤 '+esc(p.name||'Other phone')+' · location off</span>').join('')}
