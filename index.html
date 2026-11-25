@@ -630,16 +630,36 @@ let ROUTE=(()=>{try{return JSON.parse(localStorage.getItem('sdm.route')||'null')
 function saveRoute(){try{if(ROUTE)localStorage.setItem('sdm.route',JSON.stringify(ROUTE));else localStorage.removeItem('sdm.route')}catch(e){}}
 let PREVIEW=null;
 let routeLayer=null;
+// road routing: free OpenStreetMap router puts the stops in the shortest driving order and gives the street path
+const ROADS=(()=>{try{return JSON.parse(localStorage.getItem('sdm.roads')||'{}')}catch(e){return {}}})();
+let CUR_ORDER=[],roadBusy={},roadT=null;
+function saveRoads(){try{const ks=Object.keys(ROADS);if(ks.length>30)ks.slice(0,ks.length-30).forEach(k=>delete ROADS[k]);localStorage.setItem('sdm.roads',JSON.stringify(ROADS))}catch(e){}}
+function askRoad(key,todo){if(roadBusy[key]||!navigator.onLine||todo.length<2||todo.length>90)return;clearTimeout(roadT);
+  roadT=setTimeout(async()=>{roadBusy[key]=1;
+    try{const from=(typeof lastFix!=='undefined'&&lastFix)||null;
+      const pts=(from?[from]:[]).concat(todo.map(st=>st.h.c));
+      const url='https://router.project-osrm.org/trip/v1/driving/'+pts.map(c=>(+c[1]).toFixed(6)+','+(+c[0]).toFixed(6)).join(';')+'?roundtrip=false&source=first&destination=any&geometries=geojson&overview=full';
+      const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),15000);
+      const r=await fetch(url,{signal:ctl.signal});clearTimeout(to);const d=await r.json();
+      if(d.code!=='Ok'||!d.trips||!d.trips.length)throw 0;
+      const off=from?1:0;const order=todo.map((st,i)=>({hid:st.hid,w:d.waypoints[i+off].waypoint_index})).sort((a,b)=>a.w-b.w).map(o=>o.hid);
+      ROADS[key]={order,line:d.trips[0].geometry.coordinates.map(c=>[c[1],c[0]]),mi:d.trips[0].distance/1609.34,min:d.trips[0].duration/60};
+      saveRoads();drawRouteOverlay()}catch(e){}
+    delete roadBusy[key]},600)}
 function drawRouteOverlay(){
   if(!routeLayer)routeLayer=L.layerGroup().addTo(map);routeLayer.clearLayers();
   const R=PREVIEW||(S.deliver?ROUTE:null);if(!R)return;
   const stops=R.hids.filter(h=>H[h]&&H[h].c).map(hid=>({hid,h:H[hid],done:houseOrders(hid).every(x=>x.o.m.delivered)}));
   let todo=stops.filter(st=>!st.done);if(!todo.length)return;
-  // driving order from where you are now (or from the route's first stop)
-  todo=orderStops(todo,(typeof lastFix!=='undefined'&&lastFix)||todo[0].h.c);
-  const pts=todo.map(st=>st.h.c);
+  // order along real roads when we have it; until then, a straight-line guess from where you are
+  const key=todo.map(st=>st.hid).sort().join(',');const road=ROADS[key];
+  let pts;
+  if(road){const pos={};road.order.forEach((h,i)=>pos[h]=i);todo.sort((a,b)=>(pos[a.hid]??1e9)-(pos[b.hid]??1e9));pts=road.line}
+  else{todo=orderStops(todo,(typeof lastFix!=='undefined'&&lastFix)||todo[0].h.c);pts=todo.map(st=>st.h.c);askRoad(key,todo)}
   L.polyline(pts,{color:'#fff',weight:9,opacity:.9,interactive:false,lineJoin:'round'}).addTo(routeLayer);
-  L.polyline(pts,{color:'#0b7285',weight:5,opacity:.95,interactive:false,lineJoin:'round'}).addTo(routeLayer);
+  L.polyline(pts,{color:'#0b7285',weight:5,opacity:.95,interactive:false,lineJoin:'round',dashArray:road?null:'2 9'}).addTo(routeLayer);
+  const km=document.getElementById('rtbKm');if(km)km.textContent=road?(road.mi.toFixed(1)+' mi \u00b7 '+Math.round(road.min)+' min driving, shortest drive'):'Finding the road route...';
+  CUR_ORDER=todo.map(st=>st.hid);
   todo.forEach((st,i)=>L.marker(st.h.c,{icon:L.divIcon({className:'stopnum-ic',html:'<div class="stopnum'+(i===0?' first':'')+'">'+(i+1)+'</div>',iconSize:[30,30],iconAnchor:[15,15]}),zIndexOffset:9000,keyboard:false})
     .on('click',()=>{selected=st.hid;openDelivery(st.hid)}).addTo(routeLayer));
 }
@@ -792,8 +812,18 @@ function updateHalo(hid){
 }
 function restyle(hid){const p=polys[hid];if(p)p.setStyle(styleFor(hid));
   if(slices[hid]&&H[hid]&&H[hid].u)slices[hid].forEach((x,i)=>x.setStyle(sliceStyle(hid,H[hid].u[i])));updateHalo(hid)}
-function restyleAll(){syncRouting();for(const id in polys)restyle(id);drawLabels();renderTally()}
+function restyleAll(){try{drawDeliveryDots()}catch(e){}syncRouting();for(const id in polys)restyle(id);drawLabels();renderTally()}
 function inView(b,h){return h&&h.c&&b.contains(h.c)}
+let dotLayer=null;
+function drawDeliveryDots(){
+  if(!dotLayer)dotLayer=L.layerGroup().addTo(map);dotLayer.clearLayers();
+  if(!S.deliver||map.getZoom()>=16)return;
+  const b=map.getBounds().pad(.3);
+  for(const hid in H){const h=H[hid];if(!h||h.x||!h.c||!b.contains(h.c))continue;const list=houseOrders(hid);if(!list.length)continue;
+    const done=list.every(x=>x.o.m.delivered),owes=list.some(x=>!x.o.m.paid&&x.o.due>0),pk=!done&&list.every(x=>x.o.m.delivered||x.o.m.how==='pickup');
+    const blue=!done&&isBlue(list),fade=blue&&(PREVIEW||ROUTE);
+    const fill=done?'#adb5bd':pk?'#9775fa':'#ffb300',edge=owes?'#e03131':done?'#868e96':blue?'#1971c2':'#2f9e44';
+    L.circleMarker(h.c,{radius:done?4:6,color:edge,weight:2.5,fillColor:fill,fillOpacity:fade?.25:.95,opacity:fade?.3:1,renderer}).on('click',e=>{L.DomEvent.stop(e);selected=hid;openDelivery(hid)}).addTo(dotLayer)}}
 function drawHouses(){
   const z=map.getZoom();
   if(z<15){if(map.hasLayer(houseLayer))map.removeLayer(houseLayer)}else{if(!map.hasLayer(houseLayer))map.addLayer(houseLayer)}
@@ -999,7 +1029,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125021726';
+const BUILD='20261125022750';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD)$('#updPill').hidden=false}catch(e){}}
 setTimeout(checkUpdate,2000);setInterval(()=>{if(document.visibilityState==='visible')checkUpdate()},60000);
@@ -1328,7 +1358,7 @@ function planRoutes(perLoad,start,ang){
   return ordered.map((stops,i)=>{const load={};let due=0;const streets=[];let items=0;
     stops.forEach(st=>{items+=st.n;st.list.forEach(x=>{x.o.items.forEach(it=>{const c=pcode(it.p);load[c]=(load[c]||0)+it.q});if(!x.o.m.paid)due+=x.o.due||0});const sn=st.h.s||'';if(sn&&!streets.includes(sn))streets.push(sn)});
     return{name:'Route '+(i+1),hids:stops.map(st=>st.hid),stops,items,load,due,streets}})}
-function routeLinks(stops){const links=[];for(let i=0;i<stops.length;i+=10){const ch=stops.slice(i,i+10);const ll=ch.map(x=>x.h.c[0].toFixed(6)+','+x.h.c[1].toFixed(6));
+function routeLinks(stops){const links=[];if(CUR_ORDER.length){const pos={};CUR_ORDER.forEach((h,i)=>pos[h]=i);stops=stops.slice().sort((a,b)=>(pos[a.hid]??1e9)-(pos[b.hid]??1e9))}for(let i=0;i<stops.length;i+=10){const ch=stops.slice(i,i+10);const ll=ch.map(x=>x.h.c[0].toFixed(6)+','+x.h.c[1].toFixed(6));
   let u='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+ll[ll.length-1];if(ll.length>1)u+='&waypoints='+encodeURIComponent(ll.slice(0,-1).join('|'));
   links.push({label:ch.length===1?'Stop '+(i+1):'Stops '+(i+1)+' to '+(i+ch.length),u})}return links}
 // look at a route on the map before starting it
@@ -1336,7 +1366,7 @@ function previewRoute(r){
   PREVIEW={name:r.name,hids:r.hids};closeSheet();restyleAll();if(map.getZoom()>=16)drawLabels();
   const g=L.latLngBounds(r.stops.map(st=>st.h.c));if(g.isValid())map.fitBounds(g.pad(.2));
   const bar=$('#rtBar');
-  bar.innerHTML='<div class="rtb-t"><b>'+esc(r.name)+'</b> · '+r.stops.length+' stop'+(r.stops.length===1?'':'s')+' · '+r.items+' items'+(r.due?' · <span class="due">'+money(r.due)+'</span>':'')+'<div class="rtb-load">'+Object.keys(r.load).map(k=>r.load[k]+' '+esc(k)).join(' · ')+'</div></div>'+
+  bar.innerHTML='<div class="rtb-t"><b>'+esc(r.name)+'</b> · '+r.stops.length+' stop'+(r.stops.length===1?'':'s')+' · '+r.items+' items'+(r.due?' · <span class="due">'+money(r.due)+'</span>':'')+'<div class="rtb-load">'+Object.keys(r.load).map(k=>r.load[k]+' '+esc(k)).join(' · ')+'</div><div class="rtb-load" id="rtbKm" style="font-weight:600;color:#0b7285"></div></div>'+
     '<div class="row"><button class="btn" data-rb="back" style="flex:1">Back to routes</button><button class="btn primary" data-rb="go" style="flex:1">Start '+esc(r.name)+'</button></div>';
   bar.hidden=false;
   bar.onclick=e=>{const b=e.target.closest('[data-rb]');if(!b)return;
@@ -1622,7 +1652,7 @@ function setMark(key,hid,patch){
   if(!v.seller&&S.lastSeller&&('st' in patch||'items' in patch||'don' in patch))v.seller=S.lastSeller;
   if(!v.st&&!v.note&&!v.paid&&!v.sale&&!v.don&&!v.seller&&!v.phone)delete S.marks[S.active][key];else S.marks[S.active][key]=v;
   if(!patch.note)S.dirty=(S.dirty||0)+1; // typing a note counts once per save, not per letter
-  saveS();restyle(hid);renderTally();if(map.getZoom()>=18)drawLabels();renderSafe();
+  saveS();restyle(hid);renderTally();if(map.getZoom()>=18)drawLabels();if(S.deliver&&map.getZoom()<16)drawDeliveryDots();renderSafe();
   const w=sheet.querySelector('#payWarn');if(w)w.hidden=!needsPay(key);
   const bl=sheet.querySelector('#bigLine');if(bl){const b=bigBuyer(key);bl.hidden=!b;if(b)bl.innerHTML='<span>\u2605</span>Big buyer: '+money(b.amt)+' '+b.kind+' in '+esc(b.season)}
 }
@@ -1928,7 +1958,7 @@ let moveT;
 map.on('moveend zoomend',()=>{
   clearTimeout(moveT);moveT=setTimeout(()=>{
     const c=map.getCenter();S.view={c:[r6(c.lat),r6(c.lng)],z:map.getZoom()};saveS();
-    drawHouses();drawLabels();wantTiles();
+    drawHouses();drawLabels();drawDeliveryDots();wantTiles();
   },200);
 });
 
@@ -2078,7 +2108,7 @@ function queueRemoteRender(res){res.changedH.forEach(h=>remotePending.add(h));if
     if(remoteCfg){remoteCfg=false;remotePending.clear();rerenderAll();return}
     const reopen=S.deliver&&sheetKind==='house'&&openDeliveryHid&&remotePending.has(openDeliveryHid)&&isSheetOpen()?openDeliveryHid:null;
     for(const hid of remotePending){if(H[hid]){if(polys[hid])redrawHouse(hid);else drawHouses()}else{removeHalo(hid);if(polys[hid]){houseLayer.removeLayer(polys[hid]);delete polys[hid]}}}
-    remotePending.clear();renderTally();drawLabels();if(reopen&&H[reopen])openDelivery(reopen);
+    remotePending.clear();renderTally();drawLabels();drawDeliveryDots();if(reopen&&H[reopen])openDelivery(reopen);
   },150);
 }
 async function startSync(user){
