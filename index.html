@@ -1039,7 +1039,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125031532';
+const BUILD='20261125032023';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD){window.NEWV=v;$('#updPill').hidden=false}}catch(e){}}
 // after an update the address has ?v=...; tidy it back to the plain address
@@ -1420,7 +1420,7 @@ function openRoutes(){
   openSheet('<div class="sh-head"><div class="sh-title"><h2>Routes</h2><p>What to load, and which houses go together</p></div>'+X+'</div><div class="sh-body"></div>',true);
   draw();
 }
-document.getElementById('tally').addEventListener('click',e=>{if(e.target.closest('[data-shareme]')){try{localStorage.removeItem('sdm.trackoff')}catch(x){}startTracking(false);setTimeout(renderTallyLive,300);return}const lv=e.target.closest('[data-live]');if(lv){const p=LIVE[lv.getAttribute('data-live')];if(p){if(typeof setFollow==='function')setFollow(false);map.flyTo([p.lat,p.lng],17)}}if(e.target.closest('#routesBtn'))openRoutes();if(e.target.closest('#itemFilter'))openItemFilter();if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
+document.getElementById('tally').addEventListener('click',e=>{if(e.target.closest('[data-shareme]')){try{localStorage.removeItem('sdm.trackoff')}catch(x){}startTracking(false);setTimeout(renderTallyLive,300);return}const lv=e.target.closest('[data-live]');if(lv){const p=LIVE[lv.getAttribute('data-live')];if(p&&p.lat){if(typeof setFollow==='function')setFollow(false);map.flyTo([p.lat,p.lng],17)}}if(e.target.closest('#routesBtn'))openRoutes();if(e.target.closest('#itemFilter'))openItemFilter();if(e.target.closest('#shareRoute'))openShareRoute();if(e.target.closest('#pickupList'))openPickups()});
 function openPickups(){
   sheetKind='pickups';const m=S.marks[S.active]||{};const rows=[];
   for(const k in m){const hid=k.split('|')[0];if(!H[hid]||m[k].delivered||m[k].how!=='pickup')continue;const o=orderOf(k);if(!o)continue;
@@ -1754,6 +1754,7 @@ function openSettings(){
       '<div><p class="label">Products and prices for '+esc((seasonById(S.active)||{}).name||'')+'</p><div class="list" id="prodList">'+
         prodsFor(S.active).map((p,i)=>'<div class="prod-row" data-i="'+i+'"><input type="text" class="pl" value="'+esc(p.label)+'" aria-label="Product name" data-pl><input type="text" class="pc" value="'+esc(pcode(p))+'" maxlength="4" aria-label="Short code for delivery labels" title="Short code" data-pcode autocapitalize="characters"><div class="pp"><b class="muted">$</b><input type="text" inputmode="decimal" value="'+p.price+'" aria-label="Price" data-pp></div><button class="icon-btn" data-pdel aria-label="Delete product"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></div>').join('')+
       '</div><div class="row" style="margin-top:8px"><button class="btn" id="addProd">Add a product</button></div><p class="hint" style="margin-top:8px">Each season keeps its own prices. A new season starts with this list. The short code is what shows on the map in delivery mode.</p></div>'+
+      '<div><p class="label">Phones</p><p class="hint">This phone: <b>'+esc(deviceName()||'unnamed')+'</b>, location '+(watchId!==null?'on':'off')+', last shared '+(lastShare.t?agoText(lastShare.t):'not yet')+'. App version '+BUILD.slice(4,6)+'/'+BUILD.slice(6,8)+' '+BUILD.slice(8,10)+':'+BUILD.slice(10,12)+' UTC.<br>'+(Object.keys(LIVE).length?Object.keys(LIVE).map(k=>{const p=LIVE[k];return 'Other phone: <b>'+esc(p.name||k)+'</b>, last message '+(p.t?agoText(p.t):'unknown')+(p.off?', location off':'')+(p.lat?'':', no spot')}).join('<br>'):'No other phones have reported yet.')+'</p></div>'+
       (!SYNC_ENABLED?'':'<div><p class="label">Account</p>'+(SY.on&&SY.user?'<p class="hint" style="margin-bottom:8px">Signed in as <b>'+esc(SY.user.email||'')+'</b>. Your map saves to your account and updates on every phone signed in to it.</p>'+syncLine()+'<button class="btn small" id="signOut">Sign out</button>':'<p class="hint" style="margin-bottom:8px">Not signed in. Your map is only on this phone.</p><button class="btn small primary" id="signIn">Sign in</button>')+'</div>')+
       '<div><p class="label">Receipts</p><div style="display:flex;flex-direction:column;gap:8px">'+
         '<label class="hint" for="rcSellers">Scouts selling (separate with commas)</label><input type="text" id="rcSellers" value="'+esc(sellers().join(', '))+'" style="width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px">'+
@@ -1929,16 +1930,16 @@ function saveLive(){try{localStorage.setItem('sdm.live',JSON.stringify(LIVE))}ca
 function applyLive(data){if(!data)return;const me='p_'+devId();
   for(const k in data){if(!k.startsWith('p_')||k===me)continue;try{const n=JSON.parse(data[k]),o=LIVE[k];if(o&&o.t>n.t)continue;if(n.off&&!n.lat&&o&&o.lat){n.lat=o.lat;n.lng=o.lng;n.seen=o.seen||o.t}LIVE[k]=n}catch(e){}}saveLive();drawLive()}
 function agoText(t){const m=Math.round((Date.now()-t)/60000);return m<1?'just now':m===1?'1 min ago':m<60?m+' min ago':Math.round(m/60)+' hr ago'}
-function liveOthers(){const by={};Object.keys(LIVE).map(k=>Object.assign({k},LIVE[k])).filter(p=>p.lat).forEach(p=>{const n=(p.name||p.k);if(!by[n]||by[n].t<p.t)by[n]=p});return Object.values(by)}
+function liveOthers(){const by={};Object.keys(LIVE).map(k=>Object.assign({k},LIVE[k])).filter(p=>p.t||p.lat).forEach(p=>{const n=(p.name||p.k);if(!by[n]||by[n].t<p.t)by[n]=p});return Object.values(by)}
 function drawLive(){
   if(!liveLayer)liveLayer=L.layerGroup().addTo(map);liveLayer.clearLayers();
-  liveOthers().forEach(p=>{const seen=p.off?(p.seen||p.t):p.t;const stale=p.off||Date.now()-seen>5*60000;
+  liveOthers().filter(p=>p.lat).forEach(p=>{const seen=p.off?(p.seen||p.t):p.t;const stale=p.off||Date.now()-seen>5*60000;
     L.marker([p.lat,p.lng],{icon:L.divIcon({className:'them-ic',html:'<div class="them'+(stale?' stale':'')+'"><i></i><span>'+esc(p.name||'Other phone')+' · '+(p.off?'location off, last seen '+agoText(seen):agoText(seen))+'</span></div>',iconSize:[22,22],iconAnchor:[11,11]}),zIndexOffset:9500,interactive:false,keyboard:false}).addTo(liveLayer)});
   try{renderTallyLive()}catch(e){}}
 function renderTallyLive(){const el=document.getElementById('liveChips');if(!el)return;
   const offs=[];
   el.innerHTML=(S.deliver&&watchId===null?'<button type="button" class="tchip them-off" data-shareme="1">📍 Your location is off · tap to share</button>':'')+
-    liveOthers().map(p=>'<button type="button" class="tchip '+(p.off?'them-off':'them-chip')+'" data-live="'+esc(p.k)+'">👤 '+esc(p.name||'Other phone')+' · '+(p.off?'location off':agoText(p.t))+'</button>').join('')+
+    liveOthers().map(p=>'<button type="button" class="tchip '+(p.off?'them-off':'them-chip')+'" data-live="'+esc(p.k)+'">👤 '+esc(p.name||'Other phone')+' · '+(!p.lat?'location off, no spot yet':p.off?'location off':agoText(p.t))+'</button>').join('')+
     offs.map(p=>'<span class="tchip them-off">👤 '+esc(p.name||'Other phone')+' · location off</span>').join('')}
 setInterval(()=>{if(Object.keys(LIVE).length)drawLive()},30000);
 setTimeout(()=>{try{if(Object.keys(LIVE).length)drawLive()}catch(e){}},800);
