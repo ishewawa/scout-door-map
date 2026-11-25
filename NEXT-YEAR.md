@@ -49,3 +49,11 @@ New accounts start fully set up so nobody has to configure anything:
 * Current season already created and active.
 * Core statuses are locked so the overlay reads the same across every family. Families can add their own extra statuses.
 * Products are fully editable per family (Brea's decision): add, remove, rename and reprice items, since other packs may sell different things door to door. Brea's list is only the starting point.
+
+## Open to any group, not just scouts
+
+Kids in gymnastics, sports teams, schools and churches sell wreaths door to door too. Make the app work for any fundraising group:
+* At sign up, ask what kind of group (Scouts, sports team, gymnastics, school, church, other) and the group's name.
+* Neutral wording everywhere: "Seller" instead of "Scout" in the picker, "group" instead of "pack". Scout families can still see scout wording.
+* Consider a name that isn't scout only (Door Map already works).
+* Overlay and master account work the same for every group type.
