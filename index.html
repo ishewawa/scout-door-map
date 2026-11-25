@@ -464,6 +464,17 @@ textarea:focus,input[type=text]:focus,input[type=number]:focus,select:focus{bord
     <button type="button" class="nearpill" id="nearPill" hidden></button>
     <div class="rtbar" id="rtBar" role="region" aria-label="Route preview" hidden></div>
     <button type="button" class="updpill" id="updPill" hidden>New version ready <b>Refresh</b></button>
+    <script>
+    // runs before the main app, so the update pill and error notes work even if the app itself fails to start
+    (function(){
+      var pill=document.getElementById('updPill');
+      pill.addEventListener('click',function(){pill.textContent='Updating...';
+        var go=function(){location.replace(location.pathname+'?v='+(window.NEWV||Date.now()))};var done=false;var once=function(){if(!done){done=true;go()}};setTimeout(once,2500);
+        try{if(navigator.serviceWorker){navigator.serviceWorker.getRegistration().then(function(r){return r&&r.update()}).catch(function(){}).then(once,once)}else once()}catch(e){once()}});
+      window.addEventListener('error',function(e){try{var b=document.getElementById('appErr');if(!b){b=document.createElement('div');b.id='appErr';b.style.cssText='position:fixed;left:8px;right:8px;top:8px;z-index:2000;background:#c92a2a;color:#fff;font:600 13px/1.35 system-ui;padding:10px 12px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.3)';document.body.appendChild(b);b.addEventListener('click',function(){b.remove()})}
+        b.textContent='Something went wrong in the app. Send this to Claude: '+(e.message||'error')+' (line '+(e.lineno||'?')+')';}catch(x){}});
+    })();
+    </script>
     <section class="sheet" id="sheet" hidden aria-modal="false"></section>
   </div>
   <nav class="tabs" role="tablist">
@@ -1039,7 +1050,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125032023';
+const BUILD='20261125032501';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD){window.NEWV=v;$('#updPill').hidden=false}}catch(e){}}
 // after an update the address has ?v=...; tidy it back to the plain address
@@ -2221,11 +2232,7 @@ applyHelper();
 try{if(sessionStorage.getItem('sdm.photoPending')){sessionStorage.removeItem('sdm.photoPending');setTimeout(()=>toast('The phone restarted the app while the camera was open. Open the house and tap From photos to attach the picture you took.'),2500)}}catch(e){}
 if(FIRST_RUN&&!helperCfg())setTimeout(()=>{if(!document.querySelector('.login:not([hidden])'))startTour();else{const iv=setInterval(()=>{if(!document.querySelector('.login:not([hidden])')){clearInterval(iv);setTimeout(startTour,800)}},1000)}},1200);
 })();
-// a brand new address for the page each time, so the web host can't hand back its saved older copy
-document.getElementById('updPill').addEventListener('click',()=>{const p=document.getElementById('updPill');p.textContent='Updating...';
-  const go=()=>location.replace(location.pathname+'?v='+(window.NEWV||Date.now()));
-  let done=false;const once=()=>{if(!done){done=true;go()}};setTimeout(once,2500);
-  try{if(navigator.serviceWorker){navigator.serviceWorker.getRegistration().then(r=>r&&r.update()).catch(()=>{}).finally(once)}else once()}catch(e){once()}});
+
 // open Google Maps from an installed app: Android gets turn by turn straight away; elsewhere the Maps link opens in place
 document.addEventListener('click',e=>{const b=e.target.closest('[data-navto],[data-mapsurl]');if(!b)return;e.preventDefault();
   const android=/android/i.test(navigator.userAgent);
