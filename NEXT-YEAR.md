@@ -15,3 +15,21 @@ Notes for building it:
 * A "Text unpaid" list in delivery mode. It shows each unpaid house with a phone number and one Text button per person, and marks who has already been texted and when.
 * Fill in the amount owed and the Venmo link (same link the Venmo QR uses).
 * Let us edit the message wording once in Settings.
+
+## Accounts for other families (pack beta)
+
+Let other families sign up and run their own map.
+
+* Each family gets its own separate space in Firebase. One family can never see another's data.
+* Sign up screen with email and password, plus password reset.
+* Firebase rules lock each family to their own space.
+* Invite your own helpers (spouse, grandparents) into your family's map.
+* Move our current data into our family's space without changing anything.
+
+### Master account (Brea)
+
+Brea's account can see every family's map.
+
+* Firebase rules give one admin email read access to all family spaces. Decide whether it can also edit.
+* In the app: a family switcher only Brea sees, plus a pack overview with totals per family and the whole pack.
+* Families should be told up front at sign up that the pack admin can see their map and customer info.
