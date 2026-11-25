@@ -1051,7 +1051,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125033523';
+const BUILD='20261125035621';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD){window.NEWV=v;$('#updPill').hidden=false}}catch(e){}}
 // after an update the address has ?v=...; tidy it back to the plain address
@@ -1610,9 +1610,9 @@ function pickPhoto(useCamera,onFile){
 // asked when Mark delivered is tapped without saying how
 function askHow(){return new Promise(res=>{const bg=document.createElement('div');bg.className='modal-bg';
   bg.innerHTML='<div class="modal" role="dialog" aria-label="How was it delivered?"><p><b>How was it delivered?</b></p>'+
-    '<button class="big-btn" data-h="door" style="width:100%">🚪 Left at door</button>'+
+    '<button class="big-btn" data-h="photo" style="width:100%">🚪📷 Left at door (take photo)</button>'+
     '<button class="big-btn" data-h="person" style="width:100%;margin-top:8px">🤝 Handed to someone</button>'+
-    '<button class="big-btn" data-h="photo" style="width:100%;margin-top:8px">📷 Take a photo (left at door)</button>'+
+    '<button class="btn" data-h="door" style="width:100%;margin-top:8px">Left at door, no photo</button>'+
     '<button class="btn" data-h="" style="width:100%;margin-top:8px">Cancel</button></div>';
   document.body.appendChild(bg);bg.addEventListener('click',e=>{const b=e.target.closest('[data-h]');if(!b&&e.target!==bg)return;bg.remove();res(b?b.getAttribute('data-h')||null:null)})})}
 let openDeliveryHid=null;
@@ -1630,20 +1630,21 @@ function openDelivery(hid){
       (m.note?'<div class="hint">'+esc(m.note)+'</div>':'')+
       (i===0?'<button type="button" class="btn" data-navto="'+h.c[0]+','+h.c[1]+'"'+(navAddr(hid)?' data-navaddr="'+esc(navAddr(hid))+'"':'')+' data-navhid="'+esc(hid)+'">Navigate in Google Maps</button>'+(ROUTE&&ROUTE.hids.includes(hid)&&!list.every(y=>y.o.m.delivered)?'<button type="button" class="btn" data-skip="1">\u23ed Skip for now (save for a later route)</button>':''):'')+
       '<button class="big-btn'+(m.delivered?' undo':'')+'" data-dlv="'+i+'">'+(m.delivered?'Delivered \u2713'+(m.dBy?' by '+esc(m.dBy):'')+(m.dAt?' at '+new Date(m.dAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):'')+(m.how==='door'?', left at door':m.how==='person'?', handed to someone':m.how==='pickup'?', picked up':'')+' (tap to undo)':(m.how==='pickup'?'They picked it up':'Mark delivered'))+'</button>'+
-      '<div class="chips dhow" role="group" aria-label="How it was delivered"><button class="chip" data-how="door" data-i="'+i+'" aria-pressed="'+(m.how==='door')+'">\ud83d\udeaa Left at door</button><button class="chip" data-how="person" data-i="'+i+'" aria-pressed="'+(m.how==='person')+'">\ud83e\udd1d Handed to someone</button><button class="chip pkchip" data-how="pickup" data-i="'+i+'" aria-pressed="'+(m.how==='pickup')+'">\ud83d\udce6 Will pick up from us</button></div>'+
-      '<div class="row dphoto"><button class="btn" data-photo="'+i+'">\ud83d\udcf7 '+(m.photo?'Retake photo':(m.delivered?'Add photo':'Photo + mark delivered'))+'</button><button class="btn small" data-gallery="'+i+'" aria-label="Pick a photo you already took">From photos</button>'+(m.photo?'<button class="dthumb" data-view="'+i+'" aria-label="See delivery photo"><img alt="" data-thumb="'+esc(x.key)+'"></button>':'')+'</div>'+(m.photo&&m.pgeo?'<p class="hint pgeo'+(m.pgeo.d-(m.pgeo.acc||0)>100?' far':'')+'">'+geoText(m.pgeo)+'</p>':'')+'</div>'});
+      '<div class="chips dhow" role="group" aria-label="How it was delivered"><button class="chip" data-how="door" data-i="'+i+'" aria-pressed="'+(m.how==='door')+'">\ud83d\udeaa'+(m.delivered?'':' \ud83d\udcf7')+' Left at door</button><button class="chip" data-how="person" data-i="'+i+'" aria-pressed="'+(m.how==='person')+'">\ud83e\udd1d Handed to someone</button><button class="chip pkchip" data-how="pickup" data-i="'+i+'" aria-pressed="'+(m.how==='pickup')+'">\ud83d\udce6 Will pick up from us</button></div>'+
+      '<div class="row dphoto">'+(m.delivered||m.photo?'<button class="btn" data-photo="'+i+'">\ud83d\udcf7 '+(m.photo?'Retake photo':'Add photo')+'</button>':'')+'<button class="btn small" data-gallery="'+i+'" aria-label="Pick a photo you already took">From photos</button>'+(m.photo?'<button class="dthumb" data-view="'+i+'" aria-label="See delivery photo"><img alt="" data-thumb="'+esc(x.key)+'"></button>':'')+'</div>'+(m.photo&&m.pgeo?'<p class="hint pgeo'+(m.pgeo.d-(m.pgeo.acc||0)>100?' far':'')+'">'+geoText(m.pgeo)+'</p>':'')+'</div>'});
   openSheet('<div class="sh-head"><div class="sh-title"><h2>'+esc(addrOf(h)||'House')+'</h2><p>Delivery for '+esc((seasonById(S.active)||{}).name||'')+'</p></div>'+X+'</div>'+
     '<div class="sh-body">'+html+'<button class="btn" id="dFull">Open full details</button></div>',list.length>1);
   sheet.querySelector('#dFull').addEventListener('click',()=>openHouse(hid));
   sheet.querySelectorAll('[data-dlv]').forEach(b=>b.addEventListener('click',async()=>{const i=+b.getAttribute('data-dlv');const x=list[i];
     // nothing picked yet: ask how, so he never has to come back into the house
     if(!x.o.m.delivered&&!x.o.m.how){const pick=await askHow();if(!pick)return;
-      if(pick==='photo'){const pb=sheet.querySelector('[data-photo="'+i+'"]');if(pb){pb.click();return}}
+      if(pick==='photo'){takePhoto(i,true);return}
       setMark(x.key,hid,{how:pick==='photo'?'door':pick})}
     deliverKey(x.key,hid,!x.o.m.delivered,b)}));
   const sk=sheet.querySelector('[data-skip]');if(sk)sk.addEventListener('click',()=>{if(!ROUTE)return;ROUTE.hids=ROUTE.hids.filter(x=>x!==hid);saveRoute();closeSheet();restyleAll();
     if(!routeLeft()){const n=ROUTE.name;ROUTE=null;saveRoute();restyleAll();toast(n+' done \ud83c\udf89 Skipped houses go in your next routes')}else toast('Skipped. It will be in your next route.')});
   sheet.querySelectorAll('[data-how]').forEach(b=>b.addEventListener('click',()=>{const i=+b.getAttribute('data-i');const x=list[i];const v=b.getAttribute('data-how');const nv=x.o.m.how===v?null:v;
+    if(v==='door'&&nv&&!x.o.m.delivered){takePhoto(i,true);return} // left at door = take the photo, which marks it delivered
     setMark(x.key,hid,{how:nv});
     if(nv&&nv!=='pickup'&&!x.o.m.delivered){deliverKey(x.key,hid,true,null);return}
     if(SY.ready){if(SY.pushT){clearTimeout(SY.pushT);SY.pushT=null}pushChanges()}openDelivery(hid)}));
