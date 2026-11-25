@@ -1029,7 +1029,7 @@ function renderTop(){
 const TB_DEF={sale:true,unpaid:true,don:true,total:true};
 let TB=(()=>{try{return Object.assign({},TB_DEF,JSON.parse(localStorage.getItem('sdm.topbar')||'{}'))}catch(e){return Object.assign({},TB_DEF)}})();
 // update pill: this copy's stamp vs the stamp on the website (version.txt is rewritten with every publish)
-const BUILD='20261125022932';
+const BUILD='20261125023250';
 async function checkUpdate(){if(!/^https?:/.test(location.protocol)||!navigator.onLine||BUILD==='dev')return;
   try{const r=await fetch('version.txt?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(/^\d{14}$/.test(v)&&v!==BUILD)$('#updPill').hidden=false}catch(e){}}
 setTimeout(checkUpdate,2000);setInterval(()=>{if(document.visibilityState==='visible')checkUpdate()},60000);
@@ -1876,7 +1876,7 @@ $('#searchClr').addEventListener('click',()=>{$('#searchIn').value='';renderSear
 map.on('movestart',()=>{$('#searchRes').hidden=true});
 /* delivery mode toggle */
 function setDeliver(on){S.deliver=on;saveS();$('#fabDeliver').classList.toggle('on',on);if(sheetKind==='house')closeSheet();restyleAll();
-  try{if(on){if(localStorage.getItem('sdm.trackoff')!=='1')startTracking(true);if(watchId!==null)keepAwake(true)}else{showNear(null);keepAwake(false);shareSpot(null)}}catch(e){}
+  try{if(on){startTracking(true);if(watchId!==null)keepAwake(true)}else{showNear(null);keepAwake(false);shareSpot(null)}}catch(e){}
   toast(on?'Delivery mode: yellow houses still need their order. Tap one to see it.':'Delivery mode off')}
 $('#fabDeliver').addEventListener('click',()=>setDeliver(!S.deliver));
 $('#fabDeliver').classList.toggle('on',!!S.deliver);
@@ -1900,7 +1900,11 @@ function showNear(hid){const el=$('#nearPill');if(!hid){el.hidden=true;el.remove
   el.setAttribute('data-hid',hid);el.hidden=false}
 // live progress: while delivering, this phone shares where it is; other phones show it with the name and how long ago
 function devId(){try{let d=localStorage.getItem('sdm.devid');if(!d){d=Math.random().toString(36).slice(2,10);localStorage.setItem('sdm.devid',d)}return d}catch(e){return 'x'}}
-let lastShare={t:0,ll:null};
+let lastShare={t:0,ll:null},lastAcc=0;
+// keep the other phone up to date even when standing still, after a reload, or when coming back to the app
+function shareNow(force){try{if(!S.deliver||watchId===null||!lastFix)return;if(force||Date.now()-lastShare.t>45000)lastShare.t=0;shareSpot(lastFix,lastAcc)}catch(e){}}
+setInterval(()=>shareNow(false),30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(()=>shareNow(true),1500)});
 function shareSpot(ll,acc){
   if(!SY.ready||!SY.db)return;const now=Date.now();
   let body;
@@ -1932,8 +1936,8 @@ function startTracking(quiet,noFollow){
     if(!firstFix){firstFix=true;if(follow){progMove=true;map.setView(ll,Math.max(map.getZoom(),18));setTimeout(()=>progMove=false,400)}}
     else if(follow){progMove=true;map.panTo(ll,{animate:true,duration:.6});setTimeout(()=>progMove=false,800)}
     showNear(nearHouse(ll,p.coords.accuracy));
-    shareSpot(ll,p.coords.accuracy);
-  },err=>{if(!quiet||err.code!==1)toast(err.code===1?'Location is turned off for this site. Allow it in your browser settings.':'Could not find your location.');stopTracking()},{enableHighAccuracy:true,maximumAge:3000});
+    lastAcc=p.coords.accuracy;shareSpot(ll,p.coords.accuracy);
+  },err=>{if(err.code===1){if(!quiet)toast('Location is turned off for this site. Allow it in your browser settings.');stopTracking()}else if(!quiet&&!lastFix)toast('Still looking for your location...')},{enableHighAccuracy:true,maximumAge:3000});
   setFollow(!noFollow);
   try{localStorage.setItem('sdm.track','1')}catch(e){}
   if(S.deliver)keepAwake(true);
@@ -1943,6 +1947,8 @@ function stopTracking(){shareSpot(null);if(watchId!==null)navigator.geolocation.
 $('#fabLocate').addEventListener('click',()=>{
   if(watchId===null){try{localStorage.removeItem('sdm.trackoff')}catch(e){}startTracking(false);return}
   if(!follow){setFollow(true);if(lastFix){progMove=true;map.flyTo(lastFix,Math.max(map.getZoom(),18));setTimeout(()=>progMove=false,1500)}return}
+  // in delivery mode location always stays on so the other phone can see you; a tap just recenters
+  if(S.deliver){if(lastFix){progMove=true;map.flyTo(lastFix,Math.max(map.getZoom(),18));setTimeout(()=>progMove=false,1500)}shareNow(true);return}
   // already following: a second tap turns tracking off
   stopTracking();try{localStorage.removeItem('sdm.track');localStorage.setItem('sdm.trackoff','1')}catch(e){}toast('Location off. Tap again to turn it back on.')});
 // dragging the map yourself stops following until you tap the button again
@@ -1951,7 +1957,9 @@ $('#fabLocate').addEventListener('click',()=>{
 map.on('dragstart zoomstart',()=>{if(follow&&!progMove)setFollow(false)});
 $('#nearPill').addEventListener('click',()=>{const hid=$('#nearPill').getAttribute('data-hid');if(hid&&H[hid]){selected=hid;openDelivery(hid)}});
 // in delivery mode, turn tracking back on if it was on before
-setTimeout(()=>{try{if(localStorage.getItem('sdm.trackoff')!=='1')startTracking(true,!S.deliver)}catch(e){}},1500);
+// one time: turn location back on for phones where a double tap had switched it off
+try{if(!localStorage.getItem('sdm.trackfix1')){localStorage.setItem('sdm.trackfix1','1');localStorage.removeItem('sdm.trackoff')}}catch(e){}
+setTimeout(()=>{try{if(S.deliver||localStorage.getItem('sdm.trackoff')!=='1')startTracking(true,!S.deliver)}catch(e){}},1500);
 
 /* map events */
 let moveT;
@@ -2140,7 +2148,7 @@ async function startSync(user){
       if(lm){(newM[sid]=newM[sid]||{})[k]=lm}else if(newM[sid])delete newM[sid][k]}
     if(lk in last)last[lk]='\u0000'}
   H=newH;S.marks=newM;
-  SY.last=last;SY.ready=true;SY.on=true;SY.since=Date.now();
+  SY.last=last;SY.ready=true;SY.on=true;SY.since=Date.now();setTimeout(()=>shareNow(true),500);
   save('sdm.synced',FB_CONFIG.projectId+':'+user.uid);
   save(KS,S);{const out={};for(const id in H)if(!H[id].temp)out[id]=H[id];save(KH,out)}
   SY.unsent={};saveUnsent();
