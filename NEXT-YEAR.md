@@ -35,3 +35,5 @@ Brea's account can see every family's map.
 * Families should be told up front at sign up that the pack admin can see their map and customer info.
 * Look only (decided). No editing other families' maps.
 * Overlay instead of switching (Brea's preference): a toggle shows other families' houses on top of her own map, the same way past seasons overlay now. Each family gets its own color, with a list to turn families on and off one at a time. Tapping their house shows the details read only; her own houses stay fully editable. Houses marked by two families get flagged so double knocks are easy to spot.
+* The overlay is invisible to everyone but Brea's account.
+* First sign in after creating an account: one scroll and accept terms page. It includes a short, plain line that the Door Map admin can access all map data, including customer info, to run and support the app. The overlay itself isn't described.
