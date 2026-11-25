@@ -96,3 +96,4 @@ Leave a business card at every house that isn't home. The card has our phone num
 * Also solves missing deliveries: every customer, in person or by card, ends up with our number.
 * Card design (Brea): wreath photo, "Cub Scout [name] stopped by", no product list, QR code to our family's order page. One card design per scout; each scout's QR carries their name so the order is credited to them automatically (customer can still change it).
 * Order page shows our products with photos and prices, address goes to that house's box on our map, Venmo link with amount filled in, or "Pay on delivery."
+* Donations on the order page: give any amount, with or without buying anything. Quick picks ($5, $10, $20, $50) plus "Other amount." A donation only order still lands in the inbox, goes on their house (status Donation), and is credited to the scout on the card. Venmo link includes the donation in the total; "Pay on delivery" or "Pay when we stop by" for donation only.
